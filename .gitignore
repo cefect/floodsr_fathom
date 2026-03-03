@@ -1,0 +1,55 @@
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+
+ 
+
+ 
+ 
+*.log
+ 
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+ 
+
+#pydev
+.pydevproject
+.project
+.settings
+ 
+
+#VS Code
+*.code-workspace
+.devcontainer/
+
+#gdal 
+*.gpkg-wal
+*.gpkg-shm
+*.aux.xml
+
+# docs
+docs/user/_build
+
+#windows shortcuts
+*.lnk
+ 
+
+_inputs/
+ 
+
+
+# pip
+build/
+dist/
+*.egg-info
+
+# docker buildx local cache
+.buildx-cache/
