@@ -18,10 +18,10 @@ from WSL:
 ```bash
 
 #set the image name
-tag="v0.5"
-export IMAGE_NAME="cefect/floodsr:miniforge-deploy-$tag"
+tag="v0.2"
+export IMAGE_NAME="cefect/floodsr-fathom:miniforge-deploy-$tag"
 
-# build the container
+# build the container (single shared conda env: deploy)
 docker buildx build --load -f container/miniforge/Dockerfile -t "${IMAGE_NAME}" --target deploy .
 
 ```
@@ -31,11 +31,9 @@ explore w/ a random user
 ```bash
 echo $IMAGE_NAME
 
- 
-
-# dump installed packages
+# dump installed packages from the shared deploy env
 docker run --rm -v "$PWD/container/miniforge:/out" "$IMAGE_NAME" \
-  bash -lc "conda run -n deploy python -m pip freeze > /out/pip-freeze-deploy.txt && \
+  bash -lc "conda env list && \
   conda env export -n deploy > /out/conda-env-deploy.lock.yml"
 
 ```
@@ -47,27 +45,15 @@ docker push $IMAGE_NAME
 
 ```
 
- 
 ## Build Images: dev
-from WSL
+from WSL:
 ```bash
-export IMAGE_NAME="cefect/floodsr:miniforge-dev-$tag"
+export IMAGE_NAME="cefect/floodsr-fathom:miniforge-dev-$tag"
 docker buildx build --load -f container/miniforge/Dockerfile -t "${IMAGE_NAME}" --target dev .
 ```
 
-update the main devcontainer compose
+check tools in dev target
 ```bash
- 
-yq -y -i '.services.dev.image = env.IMAGE_NAME' .devcontainer/main/docker-compose.yml
-```
-
-dump installed packages
-```bash
-docker run --rm \
-  --entrypoint /bin/bash \
-  -v "$PWD/container/miniforge:/out" \
-  "$IMAGE_NAME" \
-  -lc 'conda run -n dev python -m pip freeze > /out/pip-freeze-dev.txt && \
-       conda env export -n dev > /out/conda-env-dev.lock.yml'
-
+docker run --rm --entrypoint /bin/bash "$IMAGE_NAME" -lc \
+  "conda env list && aws --version && git lfs version"
 ```

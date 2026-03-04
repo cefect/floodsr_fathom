@@ -1,166 +1,128 @@
 # syntax=docker/dockerfile:1.5
 
 FROM condaforge/miniforge3:25.3.1-0 AS base
-#https://github.com/conda-forge/miniforge-images/blob/master/ubuntu/Dockerfile
+# https://github.com/conda-forge/miniforge-images/blob/master/ubuntu/Dockerfile
 # base environment is pre-activated
-# these are pre-isntalled: wget bzip2 ca-certificates, git, tini
+# these are pre-installed: wget bzip2 ca-certificates, git, tini
 
-# Use bash for RUN and fail on pipe errors (good practice)
+# Use bash for RUN and fail on pipe errors.
 SHELL ["/bin/bash", "-o", "pipefail", "-lc"]
 
 # Keep apt operations non-interactive across stages.
 ENV DEBIAN_FRONTEND=noninteractive
 
- 
-
-
-
-
-
-
-
-
-#make permissive to any non-root user
+# make permissive to any non-root user
 ARG TARGET_DIRS="/workspace /opt/conda"
+# single shared conda env used across deploy/dev
+ARG CONDA_NAME=deploy
 
+# use a single consolidated environment file
+COPY container/miniforge/environment.yml /tmp/environment.yml
 
-# ---- basic tools for HTC runs + permission tooling
+# Install base tools.
 RUN --mount=type=cache,id=miniforge-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=miniforge-apt-lists,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; \
     apt-get update && apt-get install -y --no-install-recommends \
         acl \
         ca-certificates \
         curl \
         gh \
+        git \
+        openssh-client \
         bzip2 \
         xz-utils \
         tar \
         gzip \
-        #procps \
         pciutils \
-       # less \
-       # strace \
-       # gdb \
-        binutils
+        binutils \
+        unzip \
+        pipx
 
-# set permissions on target dirs for arbitrary users
-RUN for dir in $TARGET_DIRS; do \
-        install -dm0755 "$dir" \
-        && setfacl -b "$dir" \
-        && setfacl -m u::rwx,g::rwx,o::rwx "$dir" \
-        && setfacl -d -m u::rwx,g::rwx,o::rwx "$dir"; \
-    done 
+# Apply permissive ACLs on shared directories.
+RUN set -eux; \
+    for dir in $TARGET_DIRS; do \
+        install -dm0755 "$dir"; \
+        setfacl -b "$dir"; \
+        setfacl -m u::rwx,g::rwx,o::rwx "$dir"; \
+        setfacl -d -m u::rwx,g::rwx,o::rwx "$dir"; \
+    done
 
-# Set a permissive umask so files created inside the container are world-writable.
-RUN echo 'umask 000' >> /etc/bash.bashrc && \
-    echo 'umask 000' >> /etc/profile 
+# Configure default umask for collaborative writes.
+RUN set -eux; \
+    echo 'umask 000' >> /etc/bash.bashrc; \
+    echo 'umask 000' >> /etc/profile
 
-# Smoke test GitHub CLI auth commands are available in the deploy target.
-RUN gh --version && \
-    gh auth --help >/dev/null && \
+# Smoke test GitHub CLI auth commands.
+RUN set -eux; \
+    gh --version; \
+    gh auth --help >/dev/null; \
     gh auth status --help >/dev/null
 
+ENV PATH="/root/.local/bin:${PATH}"
 
-# ONNX layer -----------------------------
-FROM base AS onnx
-COPY container/miniforge/environment.yml /tmp/environment.yml
-
-ARG env_name=deploy
-
+# Build the single shared conda environment.
 RUN --mount=type=cache,id=miniforge-conda-pkgs,target=/opt/conda/pkgs,sharing=locked \
-    --mount=type=cache,id=miniforge-pip-cache,target=/root/.cache/pip,sharing=locked \
     conda config --set channel_priority strict && \
-    mamba env create -yv --strict-channel-priority --name ${env_name} --file /tmp/environment.yml && \
-    rm -f /tmp/environment.yml
-
-
-
-
-# PCRASTER layer -----------------------------
-FROM onnx AS pcraster
-
-ARG CONDA_NAME=deploy
-
-# install pcraster into deploy env while freezing existing deps
-RUN --mount=type=cache,target=/opt/conda/pkgs,sharing=locked \
-    conda install -yv --name "${CONDA_NAME}" --strict-channel-priority --freeze-installed -c conda-forge pcraster && \
-    conda run -n "${CONDA_NAME}" python -c "from pcraster import spreadzone"
-
+    mamba env create -yv --strict-channel-priority --name ${CONDA_NAME} --file /tmp/environment.yml && \
+    conda env config vars set PYTHONPATH=/workspace --name ${CONDA_NAME}
 
 
 # Deploy layer -----------------------------
-FROM pcraster AS deploy
-
+FROM base AS deploy
+ARG CONDA_NAME=deploy
 
 # activate the environment by default for all users
 # the miniconda container activates base by default, here we change that to our env
-RUN cat <<EOF >/etc/profile.d/conda_env.sh
+RUN cat <<EOF2 >/etc/profile.d/conda_env.sh
 # Activate the env for all login shells.
 if [ -f "${CONDA_DIR}/etc/profile.d/conda.sh" ]; then
   . "${CONDA_DIR}/etc/profile.d/conda.sh"
-  if [ "\${CONDA_DEFAULT_ENV:-}" != "${env_name}" ]; then
-    conda activate "${env_name}"
+  if [ "\${CONDA_DEFAULT_ENV:-}" != "${CONDA_NAME}" ]; then
+    conda activate "${CONDA_NAME}"
   fi
 fi
-EOF
+EOF2
 RUN echo 'if [ -f /etc/profile.d/conda_env.sh ]; then . /etc/profile.d/conda_env.sh; fi' >> /etc/bash.bashrc
-
-
-
 
 # set some base directory env vars helpful for random users
 ENV XDG_CONFIG_HOME=/tmp/.config \
     XDG_CACHE_HOME=/tmp/.cache \
     MPLCONFIGDIR=/tmp/.config/matplotlib
 
-
 ENV PYTHONUNBUFFERED=0
-
 ENV PYTHONPATH=/workspace
- 
-WORKDIR /workspace
 
+WORKDIR /workspace
 ENTRYPOINT []
 CMD []
 
 
+# flood SR layer -----------------------
+FROM deploy AS floodsr
+ARG FLOODSR_TAG='v2025.02.26'
+ENV PIPX_HOME=/opt/pipx \
+    PIPX_BIN_DIR=/usr/local/bin
 
- 
+RUN pipx install --pip-args="--no-cache-dir" "git+https://github.com/cefect/floodsr.git@${FLOODSR_TAG}"
 
-
-
-# ANALYSIS target -----------------------------
-
-FROM deploy AS dev
-
-# Keep this arg visible in this stage (used when exporting the base lock).
-ARG env_name=deploy
- 
- 
+RUN pipx list | grep -q "package floodsr" && \
+    floodsr --help >/dev/null
 
 
+# DEV target -----------------------------
+FROM floodsr AS dev
+ARG CONDA_NAME=deploy
 
-
- 
-
-
-
- 
-
-
-
-#configure my dev user
+# configure my dev user
 ARG USERNAME=cefect
 ARG USER_UID=1000
 ARG USER_GID=1000
 ARG OLD_USERNAME=ubuntu
 
-
 USER root
 
-
-
-# rename existing user if present; otherwise create the dev user
+# Provision user.
 RUN set -eux; \
     if id -u "${OLD_USERNAME}" >/dev/null 2>&1; then \
         usermod -l "${USERNAME}" "${OLD_USERNAME}"; \
@@ -170,98 +132,58 @@ RUN set -eux; \
         groupmod -g "${USER_GID}" "${USERNAME}" || true; \
     else \
         groupadd --gid "${USER_GID}" "${USERNAME}"; \
-        useradd  --uid "${USER_UID}" --gid "${USER_GID}" --create-home --shell /bin/bash "${USERNAME}"; \
+        useradd --uid "${USER_UID}" --gid "${USER_GID}" --create-home --shell /bin/bash "${USERNAME}"; \
     fi
 
-# add to sudo + common dev tooling
-RUN  --mount=type=cache,id=miniforge-apt-cache,target=/var/cache/apt,sharing=locked \
+# Install dev tooling.
+RUN --mount=type=cache,id=miniforge-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=miniforge-apt-lists,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; \
     apt-get update && apt-get install -y --no-install-recommends \
         sudo \
         git \
         git-lfs \
-        openssh-client \
-        #wget \
         rsync \
         procps \
         less \
-       strace \
-       gdb
+        strace \
+        gdb
 
-# configure passwordless sudo in a separate layer for clearer cache boundaries
-RUN echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-${USERNAME} \
-    && chmod 0440 /etc/sudoers.d/90-${USERNAME}
+# Configure passwordless sudo for the dev user.
+RUN set -eux; \
+    echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-${USERNAME}; \
+    chmod 0440 /etc/sudoers.d/90-${USERNAME}
 
-# Give the dev user ownership of places they'll modify (including conda dirs)
+# Install AWS CLI v2.
+RUN set -eux; \
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip"; \
+    unzip /tmp/awscliv2.zip -d /tmp; \
+    /tmp/aws/install; \
+    rm -rf /tmp/aws /tmp/awscliv2.zip
+
+# Ensure writable runtime directories for the dev user.
 RUN set -eux; \
     install -d -o ${USER_UID} -g ${USER_GID} -m 0755 /workspace; \
     install -d -o ${USER_UID} -g ${USER_GID} -m 1777 /tmp /var/tmp; \
     mkdir -p /home/${USERNAME}; \
-    chown -R ${USER_UID}:${USER_GID} /home/${USERNAME}; 
+    chown -R ${USER_UID}:${USER_GID} /home/${USERNAME}
 
-
-
-
-
-
-
-
-
-
-
-
-
-# Starship prompt (x86_64) — tiny one-liner layer
+# Install starship prompt.
 RUN set -eux; \
     wget -qO /tmp/starship.tgz https://github.com/starship/starship/releases/latest/download/starship-x86_64-unknown-linux-gnu.tar.gz; \
     tar -xzf /tmp/starship.tgz -C /usr/local/bin starship; \
     echo 'eval "$(starship init bash)"' >> /etc/bash.bashrc; \
     rm -rf /tmp/starship.tgz
 
-
-
-
-
-# setup dev conda environment
-COPY container/miniforge/environment.dev.yml /tmp/environment.dev.yml
-
-RUN --mount=type=cache,id=miniforge-conda-pkgs,target=/opt/conda/pkgs,sharing=locked \
-    --mount=type=cache,id=miniforge-pip-cache,target=/root/.cache/pip,sharing=locked \
-    PIP_CACHE_DIR=/root/.cache/pip conda env export --name ${env_name} --no-builds > /tmp/environment.base.lock.yml && \
-    mamba env create -yv --strict-channel-priority --name dev --file /tmp/environment.base.lock.yml && \
-    PIP_CACHE_DIR=/root/.cache/pip PIP_ROOT_USER_ACTION=ignore mamba env update -yv --name dev --file /tmp/environment.dev.yml && \
-    rm -f /tmp/environment.base.lock.yml /tmp/environment.dev.yml
-
-RUN conda env config vars set PYTHONPATH=/workspace --name dev
-
-
-#setup git: ship in a global gitconfig
+# setup git: ship in a global gitconfig
 COPY container/etc-gitconfig /etc/gitconfig
-RUN chmod 644 /etc/gitconfig
-RUN git lfs install --system
+RUN chmod 644 /etc/gitconfig && git lfs install --system
 
-# Register a dedicated Jupyter kernel for the dev environment.
-RUN conda run -n dev python -m ipykernel install --sys-prefix --name dev --display-name "Python (dev)"
- 
-
-# Install pipx system-wide into the base environment
-# pipx docs recommend installing via pip and ensuring ~/.local/bin is on PATH:contentReference[oaicite:0]{index=0}
-# RUN pip install --no-cache-dir pipx \
-#  && python3 -m pipx ensurepath \
-#  && ln -s /root/.local/bin/pipx /usr/local/bin/pipx
-
-# RUN pipx install --pip-args="--no-cache-dir" conda-lock
-
-
-
-
-#set default user
+# set default user
 USER ${USER_UID}:${USER_GID}
-  
-# set default conda environment  
-#NOTE: because the user already existed, the base-stage changes to their .bashrc need to be propagated
-RUN echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate deploy" >> ~/.bashrc
+
+# set default conda environment
+# NOTE: because the user already existed, the base-stage changes to their .bashrc need to be propagated
+RUN echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate ${CONDA_NAME}" >> ~/.bashrc
 
 ENTRYPOINT ["/bin/bash", "-lc"]
-
- 
