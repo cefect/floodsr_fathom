@@ -110,8 +110,33 @@ RUN pipx list | grep -q "package floodsr" && \
     floodsr --help >/dev/null
 
 
+# Snakemake layer ----------------------
+# not needed for AP execution
+FROM floodsr AS snakey
+
+# Export a pre-Snakemake lock and install into the shared env with pinned existing deps.
+RUN --mount=type=cache,id=miniforge-conda-pkgs,target=/opt/conda/pkgs,sharing=locked \
+    set -eux; \
+    conda env export --name ${CONDA_NAME} > /tmp/conda-env-${CONDA_NAME}-pre-snakemake.lock.yml; \
+    mamba install -y --name ${CONDA_NAME} --freeze-installed \
+        -c conda-forge -c bioconda -c nodefaults \
+        snakemake
+
+# Put PuLP's bundled CBC solver on PATH for workflow calls.
+# RUN ln -sf /opt/conda/lib/python3.11/site-packages/pulp/solverdir/cbc/linux/64/cbc \
+#     /opt/conda/bin/cbc
+
+
+# smoke test snakemake
+RUN set -eux; \
+    conda run --name ${CONDA_NAME} snakemake --version; \
+    conda run --name ${CONDA_NAME} snakemake --help >/dev/null
+
+RUN pipx list | grep -q "package floodsr" && \
+    floodsr --help >/dev/null
+
 # DEV target -----------------------------
-FROM floodsr AS dev
+FROM snakey AS dev
 ARG CONDA_NAME=deploy
 
 # configure my dev user
