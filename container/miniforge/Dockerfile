@@ -61,29 +61,6 @@ RUN set -eux; \
 
 ENV PATH="/root/.local/bin:${PATH}"
 
-# Build the single shared conda environment.
-RUN --mount=type=cache,id=miniforge-conda-pkgs,target=/opt/conda/pkgs,sharing=locked \
-    conda config --set channel_priority strict && \
-    mamba env create -yv --strict-channel-priority --name ${CONDA_NAME} --file /tmp/environment.yml && \
-    conda env config vars set PYTHONPATH=/workspace --name ${CONDA_NAME}
-
-
-# Deploy layer -----------------------------
-FROM base AS deploy
-ARG CONDA_NAME=deploy
-
-# activate the environment by default for all users
-# the miniconda container activates base by default, here we change that to our env
-RUN cat <<EOF2 >/etc/profile.d/conda_env.sh
-# Activate the env for all login shells.
-if [ -f "${CONDA_DIR}/etc/profile.d/conda.sh" ]; then
-  . "${CONDA_DIR}/etc/profile.d/conda.sh"
-  if [ "\${CONDA_DEFAULT_ENV:-}" != "${CONDA_NAME}" ]; then
-    conda activate "${CONDA_NAME}"
-  fi
-fi
-EOF2
-RUN echo 'if [ -f /etc/profile.d/conda_env.sh ]; then . /etc/profile.d/conda_env.sh; fi' >> /etc/bash.bashrc
 
 # set some base directory env vars helpful for random users
 ENV XDG_CONFIG_HOME=/tmp/.config \
@@ -98,6 +75,42 @@ ENTRYPOINT []
 CMD []
 
 
+# Deploy layer -----------------------------
+FROM base AS deploy
+ARG CONDA_NAME=deploy
+
+# Build the single shared conda environment.
+RUN --mount=type=cache,id=miniforge-conda-pkgs,target=/opt/conda/pkgs,sharing=locked \
+    conda config --set channel_priority strict && \
+    mamba env create -yv --strict-channel-priority --name ${CONDA_NAME} --file /tmp/environment.yml && \
+    conda env config vars set PYTHONPATH=/workspace --name ${CONDA_NAME}
+
+
+
+
+# activate the environment by default for all users
+# the miniconda container activates base by default, here we change that to our env
+RUN cat <<EOF2 >/etc/profile.d/conda_env.sh
+# Activate the env for all login shells.
+if [ -f "${CONDA_DIR}/etc/profile.d/conda.sh" ]; then
+  . "${CONDA_DIR}/etc/profile.d/conda.sh"
+  if [ "\${CONDA_DEFAULT_ENV:-}" != "${CONDA_NAME}" ]; then
+    conda activate "${CONDA_NAME}"
+  fi
+fi
+EOF2
+RUN echo 'if [ -f /etc/profile.d/conda_env.sh ]; then . /etc/profile.d/conda_env.sh; fi' >> /etc/bash.bashrc
+
+
+
+
+# smoke test snakemake
+RUN set -eux; \
+    conda run --name ${CONDA_NAME} snakemake --version; \
+    conda run --name ${CONDA_NAME} snakemake --help >/dev/null
+
+
+
 # flood SR layer -----------------------
 FROM deploy AS floodsr
 ARG FLOODSR_TAG='v2025.02.26'
@@ -110,33 +123,22 @@ RUN pipx list | grep -q "package floodsr" && \
     floodsr --help >/dev/null
 
 
-# Snakemake layer ----------------------
-# not needed for AP execution
-FROM floodsr AS snakey
+RUN pipx list | grep -q "package floodsr" && \
+    floodsr --help >/dev/null
 
-# Export a pre-Snakemake lock and install into the shared env with pinned existing deps.
-RUN --mount=type=cache,id=miniforge-conda-pkgs,target=/opt/conda/pkgs,sharing=locked \
-    set -eux; \
-    conda env export --name ${CONDA_NAME} > /tmp/conda-env-${CONDA_NAME}-pre-snakemake.lock.yml; \
-    mamba install -y --name ${CONDA_NAME} --freeze-installed \
-        -c conda-forge -c bioconda -c nodefaults \
-        snakemake
+
+# Snakemake layer ----------------------
+ 
 
 # Put PuLP's bundled CBC solver on PATH for workflow calls.
 # RUN ln -sf /opt/conda/lib/python3.11/site-packages/pulp/solverdir/cbc/linux/64/cbc \
 #     /opt/conda/bin/cbc
 
 
-# smoke test snakemake
-RUN set -eux; \
-    conda run --name ${CONDA_NAME} snakemake --version; \
-    conda run --name ${CONDA_NAME} snakemake --help >/dev/null
 
-RUN pipx list | grep -q "package floodsr" && \
-    floodsr --help >/dev/null
 
 # DEV target -----------------------------
-FROM snakey AS dev
+FROM floodsr AS dev
 ARG CONDA_NAME=deploy
 
 # configure my dev user

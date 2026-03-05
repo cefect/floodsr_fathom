@@ -13,6 +13,8 @@ dependencies:
   - rasterio
   - typer
   - tqdm
+ # snakemake
+  - bioconda::snakemake
   # Data/plot stack kept from the old dev env.
   - pandas
   - contextily
