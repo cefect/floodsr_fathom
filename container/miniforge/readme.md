@@ -33,12 +33,14 @@ target="floodsr"
 # target: dev
 target="dev"
  
+
+export IMAGE_NAME="${basenm}-${target}-${tag}"
 ```
 
 ### Commands (shared across targets)
 ```bash
 # build image for current target
-export IMAGE_NAME="${basenm}-${target}-${tag}"
+
 docker buildx build --load -f container/miniforge/Dockerfile -t "${IMAGE_NAME}" --target "${target}" .
 
  
@@ -52,4 +54,12 @@ echo "$PWD/container/miniforge/conda-env-${target}.lock.yml"
 
 # OPTIONAL: push to DockerHub (must be logged in and have permissions to push to the repo)
 docker push "${IMAGE_NAME}"
+
+
+
+ 
+yq -y -i --arg dev "$IMAGE_NAME" '.services.dev.image = $dev' .devcontainer/docker-compose.yml
+
+
+ 
 ```

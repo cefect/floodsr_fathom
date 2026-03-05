@@ -64,21 +64,21 @@ export AWS_DEFAULT_REGION="eu-west-2"
 # export AWS_SESSION_TOKEN="YOUR_SESSION_TOKEN"
 out_dir=/home/cefect/LS/10_IO/2407_FHIMP/fathom
 
-./fathom_fetch.sh $out_dir
+# run fetch script and log output
+log_fp="fathom_fetch_$(date +%Y%m%d_%H%M%S).log"
+./fetch/fathom_fetch.sh "$out_dir" 2>&1 | tee "$log_fp"
 
 ```
 ## check
 ```bash
 # get TSV of file sizes in GB for each directory in out-dir
-{
-  echo -e "filename\tfilesize_gb\tfile_count"
-  find "$out_dir" -mindepth 1 -maxdepth 1 -type d -print0 \
-    | while IFS= read -r -d '' d; do
-        size_b=$(du -s -B1 "$d" | awk '{print $1}')
-        file_count=$(find "$d" -type f | wc -l)
-        name=$(basename "$d")
-        printf "%s\t%.3f\t%s\n" "$name" "$(awk "BEGIN {print $size_b/1024/1024/1024}")" "$file_count"
-      done \
-    | sort -t$'\t' -k2,2nr
-} > fetch_size.tsv
+printf $'filename\tfilesize_gb\tfile_count\n' > fetch_size.tsv
+find "$out_dir" -mindepth 1 -maxdepth 1 -type d -print0 \
+  | while IFS= read -r -d '' d; do
+      size_b=$(du -s -B1 "$d" | awk '{print $1}')
+      file_count=$(find "$d" -type f | wc -l)
+      name=$(basename "$d")
+      printf "%s\t%.3f\t%s\n" "$name" "$(awk "BEGIN {print $size_b/1024/1024/1024}")" "$file_count"
+    done \
+  | sort -t$'\t' -k2,2nr >> fetch_size.tsv
 ```
