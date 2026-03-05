@@ -53,3 +53,5 @@ dist/
 
 # docker buildx local cache
 .buildx-cache/
+
+fathom_fetch_run.log
