@@ -56,6 +56,10 @@ WARNING: you probably only have access to certain assets.
 sudo apt update
 sudo apt install -y awscli
 aws --version
+```
+
+## use aws cli to fetch
+```
 
 export AWS_ACCESS_KEY_ID="YOUR_ACCESS_KEY"
 export AWS_SECRET_ACCESS_KEY="YOUR_SECRET_KEY"
@@ -69,6 +73,7 @@ log_fp="fathom_fetch_$(date +%Y%m%d_%H%M%S).log"
 ./fetch/fathom_fetch.sh "$out_dir" 2>&1 | tee "$log_fp"
 
 ```
+
 ## check
 ```bash
 # get TSV of file sizes in GB for each directory in out-dir
@@ -81,4 +86,12 @@ find "$out_dir" -mindepth 1 -maxdepth 1 -type d -print0 \
       printf "%s\t%.3f\t%s\n" "$name" "$(awk "BEGIN {print $size_b/1024/1024/1024}")" "$file_count"
     done \
   | sort -t$'\t' -k2,2nr >> fetch_size.tsv
+```
+
+## build a tile index
+```bash
+out_dir=/home/cefect/LS/10_IO/2407_FHIMP/fathom
+log_fp="fetch/build_grid_$(date +%Y%m%d_%H%M%S).log"
+odir="workflow_outdir/00_tile_index"
+./fetch/build_grid.sh --target-dir "$out_dir" --out-dir $odir 2>&1 | tee "$log_fp"
 ```
