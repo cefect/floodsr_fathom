@@ -88,6 +88,9 @@ RUN --mount=type=cache,id=miniforge-conda-pkgs,target=/opt/conda/pkgs,sharing=lo
 
 
 
+# Register a dedicated Jupyter kernel for the conda environment.
+RUN conda run -n ${CONDA_NAME} python -m ipykernel install --sys-prefix --name ${CONDA_NAME} --display-name "Python (${CONDA_NAME})"
+
 # activate the environment by default for all users
 # the miniconda container activates base by default, here we change that to our env
 RUN cat <<EOF2 >/etc/profile.d/conda_env.sh
@@ -113,18 +116,15 @@ RUN set -eux; \
 
 # flood SR layer -----------------------
 FROM deploy AS floodsr
-ARG FLOODSR_TAG='v2025.02.26'
-ENV PIPX_HOME=/opt/pipx \
-    PIPX_BIN_DIR=/usr/local/bin
+ARG CONDA_NAME=deploy
+ARG FLOODSR_BRANCH=master
 
-RUN pipx install --pip-args="--no-cache-dir" "git+https://github.com/cefect/floodsr.git@${FLOODSR_TAG}"
+# Install floodsr from a branch into the shared conda environment.
+RUN conda run --name ${CONDA_NAME} python -m pip install --no-cache-dir \
+    "git+https://github.com/cefect/floodsr.git@${FLOODSR_BRANCH}"
 
-RUN pipx list | grep -q "package floodsr" && \
-    floodsr --help >/dev/null
-
-
-RUN pipx list | grep -q "package floodsr" && \
-    floodsr --help >/dev/null
+# Smoke test floodsr inside the conda environment.
+RUN conda run --name ${CONDA_NAME} floodsr --help >/dev/null
 
 
 # Snakemake layer ----------------------

@@ -25,3 +25,7 @@ dependencies:
   - matplotlib
   - pyproj
   - imageio
+#notebooks
+  - jupyterlab 
+  - notebook 
+  - ipykernel 
