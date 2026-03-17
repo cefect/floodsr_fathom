@@ -1,0 +1,22 @@
+{
+	"files.exclude": {
+		"**/__pycache__": true,
+		"**/.pytest_cache": true,
+ 
+		"*.egg-info": true,
+		"**/build": true,
+		"*.aux.xml": true,
+	},
+	
+	"search.exclude": {
+		"**/__pycache__": true,
+		"**/.pytest_cache": true,
+		"**/env": true,
+		"**/.snakemake": true,
+		"LICENSE": true,
+		"**/build": true,
+		"*.aux.xml": true,
+	},
+"jupyter.notebookFileRoot": "${workspaceFolder}",
+ 
+}
