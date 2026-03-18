@@ -2,19 +2,20 @@ channels:
   - conda-forge
 dependencies:
   # Core runtime.
-  - python=3.13.12
+  - python=3.12.12
   - pip=26.0.1
   - numpy=2.4.2
-  - onnxruntime=1.24.2
+  - onnxruntime=1.22.2
   - pcraster=4.4.2
-  - platformdirs=4.9.4
+  - platformdirs=4.9.2
   - pydantic=2.12.5
   - pystac=1.14.3
   - pystac-client=0.9.0
   - rasterio=1.5.0
   - typer=0.24.0
+  - pytest=9.0.2
   - tqdm=4.67.3
-  - geopandas=1.1.3
+  - geopandas-base=1.1.3
   # extended
   - gdal=3.12.2
   # snakemake
@@ -35,4 +36,4 @@ dependencies:
   - ipykernel=7.2.0
   # bundled pip install for the shared deploy env
   - pip:
-    - floodsr==0.0.6
+    - floodsr==0.0.8
