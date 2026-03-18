@@ -112,17 +112,6 @@ RUN set -eux; \
     conda run --name ${CONDA_NAME} snakemake --version; \
     conda run --name ${CONDA_NAME} snakemake --help >/dev/null
 
-
-
-# flood SR layer -----------------------
-FROM deploy AS floodsr
-ARG CONDA_NAME=deploy
-ARG FLOODSR_BRANCH=master
-
-# Install floodsr from a branch into the shared conda environment.
-RUN conda run --name ${CONDA_NAME} python -m pip install --no-cache-dir \
-    "git+https://github.com/cefect/floodsr.git@${FLOODSR_BRANCH}"
-
 # Smoke test floodsr inside the conda environment.
 RUN conda run --name ${CONDA_NAME} floodsr --help >/dev/null
 
@@ -138,7 +127,7 @@ RUN conda run --name ${CONDA_NAME} floodsr --help >/dev/null
 
 
 # DEV target -----------------------------
-FROM floodsr AS dev
+FROM deploy AS dev
 ARG CONDA_NAME=deploy
 
 # configure my dev user

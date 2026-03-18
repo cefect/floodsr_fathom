@@ -19,16 +19,11 @@ from WSL:
 ### Variables (set once per target)
 ```bash
 # shared
-tag="v0.3"
+tag="v0.4"
 basenm="cefect/floodsr-fathom:miniforge"
 
 # target: deploy
 target="deploy"
- 
-
-# target: floodsr
-target="floodsr"
- 
 
 # target: dev
 target="dev"
@@ -47,9 +42,14 @@ docker buildx build --load -f container/miniforge/Dockerfile -t "${IMAGE_NAME}" 
 
 # optional: export lock file for current env_name
 env_name="deploy"
-docker run --rm -v "$PWD/container/miniforge:/out" "${IMAGE_NAME}" \
+docker run --rm --entrypoint /bin/bash -v "$PWD/container/miniforge:/out" "${IMAGE_NAME}" \
   bash -lc "conda env list && conda env export -n ${env_name} > /out/conda-env-${target}.lock.yml"
 echo "$PWD/container/miniforge/conda-env-${target}.lock.yml"
+
+# optional: export pip freeze for current env_name
+docker run --rm --entrypoint /bin/bash -v "$PWD/container/miniforge:/out" "${IMAGE_NAME}" \
+  bash -lc "conda run -n ${env_name} python -m pip freeze > /out/pip-freeze-${target}.txt"
+echo "$PWD/container/miniforge/pip-freeze-${target}.txt"
 
 
 # OPTIONAL: push to DockerHub (must be logged in and have permissions to push to the repo)
