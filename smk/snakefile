@@ -1,0 +1,238 @@
+
+#print('start snakefile')
+
+#===============================================================================
+# IMPORTS
+#===============================================================================
+import glob, datetime, pprint, sys, os, csv, time, json, builtins, tempfile, warnings
+
+start_time = time.time()
+
+import pandas as pd
+import geopandas as gpd
+from pathlib import Path
+
+import snakemake
+from snakemake.utils import validate 
+from snakemake import resources
+from snakemake.io import ancient
+
+
+# Redirect print to stderr for snakemake+htcondor logging
+# requries 'stream_output = True' in the submit file to see output in real-time
+_builtin_print = builtins.print
+def print(*args, **kwargs):
+    _builtin_print(*args, file=sys.stderr, flush=True, **kwargs)
+
+
+# -----------------------
+# ----- ENVIRONMNET -----
+# -----------------------
+#ensure the repo root is at the front of sys.path
+REPO_ROOT = Path(os.getcwd())
+sys.path.insert(0, str(REPO_ROOT))
+#print(f'Added to sys.path: {REPO_ROOT}')
+
+
+# HTC executor setup ------------------
+
+import parameters
+
+# from smk.snakefile_coms import (
+#     collect_common_inputs,
+#     parse_config_list,
+#     dir_from_config,
+#     load_or_build_tile_index,
+#     load_idf_series,
+# )
+
+ 
+
+# #enviroment inspection===========
+print(f'snakemake.__version__: {snakemake.__version__}')
+
+
+#===============================================================================
+# SNAKE CONFIG-----------------
+#===============================================================================
+# Load config file
+configfile: "smk/config.yaml"
+
+
+
+
+
+#===============================================================================
+# HOOKS
+#===============================================================================
+
+onstart:
+    # runs after Snakemake has parsed the workflow and constructed the DAG, right before execution begins.
+    # nothing here that assists in rule driving
+    print(f"[snakefile.onstart] {datetime.datetime.now()}")
+    print(f"[snakefile.onstart] {Path(__file__).name}")
+    #import scripts.search_path_config #update search paths (needs to happen before imports)
+
+    #print(f"[snakefile] COMMON_INPUTS:\n    {pprint.pformat(COMMON_INPUTS)}")
+
+    if DEBUG:
+        print("\033[95mDEBUG mode is ON\033[0m")
+
+    if not SNAKEMAKE_EP:
+        print(f"OUT_DIR: {OUT_DIR}")
+        print(f"TEMP_DIR: {TEMP_DIR}")
+
+onsuccess:
+    # report total wall-clock runtime for the workflow
+    runtime_sec = time.time() - start_time
+    print(f"[snakefile.onsuccess] wall clock runtime: {runtime_sec:.1f} sec")
+
+ 
+#===============================================================================
+# parameters
+#===============================================================================
+
+
+# Helper to normalize directory config entries to Path or None
+
+
+# Parse CLI input from config
+OUT_DIR = Path(config.get("out_dir"))
+ 
+
+#temp dir. using python backend, which pulls from system ENV (TMPDIR , TEMP, TMP)
+# matches snakemake behavior
+# for usage in rules, use snakemake.resources.tmpdir (handles parallel runs better)
+#TEMP_DIR = _dir_from_config(config.get("temp_dir"))
+TEMP_DIR = Path(tempfile.gettempdir())
+
+DEBUG = config.get("debug", False)
+
+
+TILE_CNT = config.get("tile_cnt", 2)
+if isinstance(TILE_CNT, str) and TILE_CNT.strip().lower() in {"none", "null", "", 'None'}:
+    TILE_CNT = None
+HRDEM_ASSET = config.get("hrdem_asset", "dtm")
+
+ 
+#Directories===============================
+
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+{
+    "return_period": ["1in5", "1in10", "1in20", "1in50", "1in75", "1in100", "1in200", "1in500", "1in1000"],
+    "protection": ["DEFENDED", "UNDEFENDED"],
+    "hazard_type": ["FLUVIAL", "PLUVIAL"],
+}
+
+ 
+
+# Primary Indexers/Wildcards======================
+"""rules iterate on tileID
+
+provID and tile_cnt are used to set these tileIDs from teh tile_index_bx 
+to allow for more control on runs
+"""
+ 
+ 
+
+IDS = {    
+    'tileID':parse_config_list(config.get("tile_ids"), dtype=str),
+    'provID': parse_config_list(config.get("prov_ids"), dtype=int),
+
+}
+
+tile_index_bx, IDS, _, cache_hit = load_or_build_tile_index(
+    config.get("domain_ranks_fp"),
+    IDS,
+    TEMP_DIR / "load_or_build_tile_index",
+    tile_cnt=TILE_CNT,
+    debug=DEBUG, use_cache=True
+)
+COMMON_INPUTS.append(config.get("domain_ranks_fp")) #ensure this is shipped to EP
+
+_nu_str= str(tile_index_bx.drop(columns='geometry').nunique().to_dict())
+print(f"Tile index index loaded w/ {_nu_str} w/ cache_hit={cache_hit}")
+
+tile_index_bx = tile_index_bx.set_index('tileID').sort_index()
+
+ 
+
+
+    
+
+#===============================================================================
+# HELPERS------
+#===============================================================================
+
+
+
+print(f'spinup finished in {time.time()-start_time:.1f} sec. SNAKEMAKE_EP={SNAKEMAKE_EP}')
+#===============================================================================
+# RULES------
+#===============================================================================
+
+# Initialize plib dictionary
+plib = {}
+
+
+
+# 01 TILE CHUNK--------------------
+# d = dict(name='01_chunk')
+# d['od'] = os.path.join(OUT_DIR, d['name'], '{tileID}')
+# d['ofp'] = os.path.join(d['od'], "01_index_chunk.pkl")  
+# plib['r01'] = d.copy()
+
+def get_tile_index_chunk(wildcards):
+    """Helper to get tile index chunk for current tileID"""
+    chunk = tile_index_bx.loc[[wildcards.tileID]]
+    assert isinstance(chunk, gpd.GeoDataFrame)
+    return chunk
+
+ 
+ 
+# # 02 HRDEM FETCH --------------------        
+d = dict(name='02_hrdem')
+d['od'] = os.path.join(OUT_DIR, d['name'], '{tileID}')
+d['ofp'] = os.path.join(d['od'], "02_hrdem-lidar.tif")  
+plib['r02'] = d.copy()
+
+ 
+rule rA02_hrdem:
+    """fetch the HRDEM data for the tile"""
+    input:
+        *COMMON_INPUTS
+
+        # NO. directory is only for outputs
+        # directory('workflow/scripts'),
+        # directory('external/RIM2D_py/src')
+        
+
+        #f'workflow/scripts/_{plib['r02']['name']}.py' 
+    params:
+        tile_index_chunk = get_tile_index_chunk,
+        DEBUG = DEBUG,
+        TEMP_DIR = TEMP_DIR,
+        asset = HRDEM_ASSET,
+    output:
+        plib['r02']['ofp']
+    threads: 4
+    group: 'EP_t00'
+    resources:
+        api_calls=1, #global cap on api calls
+        # mem = "2GB",
+        # disk = "2GB",
+        # based on observed usage (~1.2GB mem, ~200MB disk) + 50% buffer
+        request_memory = 2000,
+        request_disk = 1000000,
+        request_gpus = 1,
+        # bundle_size = 1,
+    #retries: 0
+    log:
+        os.path.join(plib['r02']['od'], 'snake.log')
+    script:
+        f'scripts/_{plib['r02']['name']}.py'  
+
+
+
+

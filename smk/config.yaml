@@ -1,0 +1,4 @@
+#  Snakemake Workflow Configuration File
+
+# directory where aws files dumped
+fathom_data_dir: "/home/cefect/LS/10_IO/2407_FHIMP/fathom"
