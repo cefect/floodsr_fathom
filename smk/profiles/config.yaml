@@ -1,29 +1,14 @@
-# smk/profiles/local/config.yaml
-
 snakefile: smk/snakefile
-
-# Throttle job submission
-max-jobs-per-timespan: "1/1s"
-retries: 1
-
-
-# docker-compose.yml resource caps
 cores: 4
+retries: 0
+max-jobs-per-timespan: "1/1s"
+
+
 
 # Global resource pool for your custom resource
 # Multi-arg options must be a YAML list of strings
+notemp: true
 resources:
- 
+  api_calls: 4
 rerun-triggers:
   - mtime
-
-
-# prvent cleanup of temporary directories (otherwise, simulation tests will fail)
-notemp: true
- 
-
-# provenance
-# consider-ancient:
-#     r01_stac: event_gdf_fp # never re-run when inputs change. avoids re-downloading data
- 
-  
