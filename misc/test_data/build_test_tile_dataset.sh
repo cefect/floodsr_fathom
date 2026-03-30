@@ -8,6 +8,7 @@ OUTPUT_TILES_DIR="${1:-_inputs/300x300_2tile/00_tiles}"
 SOURCE_ROOT="${2:-_inputs/full_2tile/00_tiles}"
 SRC_RETURN_PERIOD="${SRC_RETURN_PERIOD:-1in1000}"
 CROP_SIZE="${CROP_SIZE:-300}"
+CROP_OVERRIDE_FP="${CROP_OVERRIDE_FP:-$(dirname "$0")/test_crop_override.json}"
 
 HAZARD_TYPES=("COASTAL" "FLUVIAL" "PLUVIAL")
 PROTECTIONS=("DEFENDED" "UNDEFENDED")
@@ -41,6 +42,7 @@ echo "output_tiles_dir: ${OUTPUT_TILES_DIR}"
 echo "source_root: ${SOURCE_ROOT}"
 echo "src_return_period: ${SRC_RETURN_PERIOD}"
 echo "crop_size: ${CROP_SIZE} x ${CROP_SIZE}"
+echo "crop_override_fp: ${CROP_OVERRIDE_FP}"
 echo "note: local source data is missing PLUVIAL-UNDEFENDED, so this run may produce 5 tile folders instead of 6"
 
 for hazard_type in "${HAZARD_TYPES[@]}"; do
@@ -79,11 +81,7 @@ for hazard_type in "${HAZARD_TYPES[@]}"; do
             exit 1
         fi
 
-        xoff=$(( (raster_w - CROP_SIZE) / 2 ))
-        yoff=$(( (raster_h - CROP_SIZE) / 2 ))
-
         echo "  tiles: ${tif_count}"
-        echo "  srcwin: xoff=${xoff}, yoff=${yoff}, width=${CROP_SIZE}, height=${CROP_SIZE}"
 
         rm -rf "${dst_dir}"
         mkdir -p "${dst_dir}"
@@ -92,6 +90,37 @@ for hazard_type in "${HAZARD_TYPES[@]}"; do
         for src_fp in "${tif_files[@]}"; do
             tile_i=$((tile_i + 1))
             dst_fp="${dst_dir}/$(basename "${src_fp}")"
+            rel_key="${src_name}/$(basename "${src_fp}")"
+            override_key="${hazard_type}/$(basename "${src_fp}")"
+            xoff=$(( (raster_w - CROP_SIZE) / 2 ))
+            yoff=$(( (raster_h - CROP_SIZE) / 2 ))
+            crop_source="center"
+
+            if [[ -f "${CROP_OVERRIDE_FP}" ]]; then
+                override_vals="$(python - "${CROP_OVERRIDE_FP}" "${override_key}" <<'PY'
+import json, sys
+from pathlib import Path
+
+override_fp = Path(sys.argv[1])
+tile_key = sys.argv[2]
+override_d = json.loads(override_fp.read_text())
+row = override_d.get(tile_key, {})
+if row:
+    print(f"{int(row['col'])} {int(row['row'])}")
+PY
+)"
+                if [[ -n "${override_vals}" ]]; then
+                    read -r xoff yoff <<< "${override_vals}"
+                    crop_source="override"
+                fi
+            fi
+
+            if (( xoff < 0 || yoff < 0 || xoff + CROP_SIZE > raster_w || yoff + CROP_SIZE > raster_h )); then
+                echo "  crop window out of bounds for ${rel_key}: xoff=${xoff}, yoff=${yoff}, width=${CROP_SIZE}, height=${CROP_SIZE}, raster=${raster_w}x${raster_h}" >&2
+                exit 1
+            fi
+
+            echo "    srcwin (${crop_source}): ${rel_key} [override_key=${override_key}] xoff=${xoff}, yoff=${yoff}, width=${CROP_SIZE}, height=${CROP_SIZE}"
 
             # Crop the center window while keeping projection, resolution, and georeferencing intact.
             gdal_translate \

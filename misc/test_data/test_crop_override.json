@@ -1,0 +1,18 @@
+{
+  "COASTAL/n49w124.tif": {
+    "col": 2680,
+    "row": 2800
+  },
+  "FLUVIAL/n49w124.tif": {
+    "col": 2830,
+    "row": 980
+  },
+  "FLUVIAL/n51w115.tif": {
+    "col": 1760,
+    "row": 2850
+  },
+  "PLUVIAL/n49w124.tif": {
+    "col": 2830,
+    "row": 980
+  }
+}
