@@ -1,0 +1,1 @@
+- driven by `workflow_outdir/00_tile_index`, with optional config/CLI selection for  `return_period`, `protection`, `hazard_type`,
