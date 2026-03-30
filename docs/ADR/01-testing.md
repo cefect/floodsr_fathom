@@ -21,7 +21,7 @@ This is for proving that the real Snakemake CLI can execute a selected rule with
 Contract:
 - invoke the real CLI (`python -m snakemake`) rather than importing rule scripts directly
 - run in a temp working directory so `out_dir` is not modified
-- copy fresh upstream rule outputs from the main `out_dir` into that temp tree before each proof run
+- copy fresh upstream rule outputs from the main `out_dir` into that temp tree before each proof run (except for the first rule proof, which can pull directly from the main `out_dir` since it is the first stage)
 - do not chain outputs from one proof test into the next; each rule proof should stage its own upstream inputs from the canonical workflow outputs
 - use `--allowed-rules` so the proof stays scoped to the intended rule
  
