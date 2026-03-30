@@ -19,7 +19,7 @@ from WSL:
 ### Variables (set once per target)
 ```bash
 # shared
-tag="v0.4"
+tag="v0.5"
 basenm="cefect/floodsr-fathom:miniforge"
 
 # target: deploy
