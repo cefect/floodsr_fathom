@@ -21,6 +21,7 @@ Each Snakemake rule script `__main__` entrypoint should initialize one file-back
 - `from smk.scripts.coms import get_logger`
 - one stable `logger_name` that identifies the rule/run
 - one explicit stream level for interactive visibility when a stream handler is enabled
+- prefer passing the rule identity explicitly from the Snakefile, for example `params.rule_name`, instead of hard-coding the rule name repeatedly inside the script
 
 The logger created at the entrypoint is the logging authority for that rule run:
 - pass it into the stage `main_*` function
@@ -58,7 +59,13 @@ Expected `WARNING` events:
 
 ### Exception handling
 
-Snakemake script entrypoints should wrap execution in `try/except`, append the traceback to `snakemake.log[0]`, then re-raise.
+Snakemake script entrypoints should wrap execution in `try/except`, log the failure with `logger.exception(...)`, then re-raise.
+
+Best practice:
+- use `logger.exception(...)` at the entrypoint/boundary where the exception is being handled, not at every inner raise site
+- if extra runtime context is needed before re-raising, attach it with `e.add_note(...)` and then re-raise the original exception
+- inner workflow/stage code should usually raise a clear exception message and let the boundary logger capture the traceback once
+- when rule-specific context is needed for logger names, notes, or messages, source it from one explicit rule-name parameter passed by the Snakefile rather than repeating string literals in multiple places
 
 ### pytest logging boundary
 
