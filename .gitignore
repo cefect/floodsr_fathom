@@ -57,3 +57,4 @@ dist/
 fathom_fetch_run.log
 
 workflow_outdir/
+AGENTS.md
