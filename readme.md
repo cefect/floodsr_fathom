@@ -7,6 +7,7 @@
 - pull image and enter .devcontainer (see below). TODO: prove on a simple docker run (no dev layer?)
 - fetch AWS tiles into `workflow_outdir/00_tiles` (see `fathom_aws_fetch`)
 - create tile index in `workflow_outdir/00_tile_index`  (see `fathom_aws_fetch`)
+- note: the current local Fathom source tree does not include `PLUVIAL-UNDEFENDED`, so combo-driven test-data runs currently produce 5 indexes instead of 6.
 
 
 ### devcontainer
