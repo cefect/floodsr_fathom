@@ -1,4 +1,4 @@
-import datetime, tempfile
+import datetime, tempfile, logging
 from pathlib import Path
 
 from parameters import min_depth as MIN_DEPTH
@@ -183,7 +183,7 @@ rule r03_tohr:
         cache_dir=_rule_cache_dir(plib["r03"]),
         tile_index_chunk=lambda wildcards: _row_from_wildcards(wildcards).to_dict(),
         DEBUG=DEBUG,
-        logging_level=None,
+        logging_level=logging.INFO,
         model_version=str(config.get("model_version", "ResUNet_16x_DEM")),
         max_depth=10,
         min_depth_threshold=float(config.get("min_depth", MIN_DEPTH)),
