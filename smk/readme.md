@@ -27,5 +27,11 @@ snakemake -n r01_prep_all
 snakemake workflow_outdir/02_hrdem/PLUVIAL/DEFENDED/1in1000/n49w124/r02_hrdem.vrt
 
 # all filtered HRDEM invocations
-snakemake r02_hrdem_all
+snakemake -n r02_hrdem_all
+
+
+# r03_tohr -----------------------------
+snakemake workflow_outdir/03_tohr/FLUVIAL/UNDEFENDED/1in1000/n51w115/r03_tohr.vrt
+
+snakemake r03_tohr_all
 ```
