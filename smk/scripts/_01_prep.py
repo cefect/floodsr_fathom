@@ -39,11 +39,7 @@ def main_01_prep(
     manual_window_size = None if manual_window_size is None else int(manual_window_size)
 
     # Validate the major inputs and the upstream raster contract.
-    assert tile_fp.is_file(), f"missing prep input raster:\n    {tile_fp}"
-    assert min_depth >= 0.0, f"min_depth must be non-negative, got {min_depth}"
-    if manual_window_size is not None:
-        assert manual_window_size > 0, f"manual_window_size must be positive, got {manual_window_size}"
-
+    assertions.assert_01_prep_inputs(tile_fp, min_depth=min_depth, manual_window_size=manual_window_size)
     assertions.assert_01_prep_input_raster(tile_fp)
     r01_prep_fp.parent.mkdir(parents=True, exist_ok=True)
     log.info(f"starting 01_prep with input=\n    {tile_fp}")
