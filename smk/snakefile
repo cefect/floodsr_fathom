@@ -73,9 +73,9 @@ def _expand_outputs(pattern):
     return [pattern.format(**record) for record in RUN_RECORD_L]
 
 
-def _rule_cache_dir(rule_name):
-    """Return one project-local cache directory for the current rule."""
-    return str((PROJECT_CACHE_DIR / rule_name).resolve())
+def _rule_cache_dir(rule_d):
+    """Return one project-local cache directory for the current rule config."""
+    return str((PROJECT_CACHE_DIR / rule_d["rule_name"]).resolve())
 
 
 
@@ -90,6 +90,7 @@ plib = {}
 
 # r01_prep -----------------------------
 d = dict(name="01_prep")
+d["rule_name"] = "r01_prep"
 d['od'] = str(OUT_DIR / "01_prep" / "{hazard_type}" / "{protection}" / "{return_period}" / "{tileID}")
 d['ofp'] = str(Path(d['od']) / "r01_prep.tif")
 plib['r01'] = d.copy()
@@ -102,8 +103,8 @@ rule r01_prep:
     input:
         tile_fp=lambda wildcards: _row_from_wildcards(wildcards)["tile_fp"]
     params:
-        rule_name="r01_prep",
-        cache_dir=_rule_cache_dir("r01_prep"),
+        rule_name=plib["r01"]["rule_name"],
+        cache_dir=_rule_cache_dir(plib["r01"]),
         tile_index_chunk=lambda wildcards: _row_from_wildcards(wildcards).to_dict(),
         DEBUG=DEBUG,
         min_depth=float(config.get("min_depth", MIN_DEPTH)),
@@ -127,6 +128,7 @@ rule r01_prep_all:
 
 # r02_hrdem -----------------------------
 d = dict(name="02_hrdem")
+d["rule_name"] = "r02_hrdem"
 d["od"] = str(OUT_DIR / "02_hrdem" / "{hazard_type}" / "{protection}" / "{return_period}" / "{tileID}")
 d["ofp"] = str(Path(d["od"]) / "r02_hrdem.vrt")
 plib["r02"] = d.copy()
@@ -136,13 +138,15 @@ rule r02_hrdem:
     input:
         r01_prep_fp = plib["r01"]["ofp"]
     params:
-        rule_name="r02_hrdem",
-        cache_dir=_rule_cache_dir("r02_hrdem"),
+        rule_name=plib["r02"]["rule_name"],
+        cache_dir=_rule_cache_dir(plib["r02"]),
         tile_index_chunk=lambda wildcards: _row_from_wildcards(wildcards).to_dict(),
         DEBUG=DEBUG,
         use_cache=True,
         force_tiling=True, # for vrt
         show_progress=False,
+        max_depth=10,
+        min_depth_threshold=float(config.get("min_depth", MIN_DEPTH)),
     output:
         r02_hrdem_fp = plib["r02"]["ofp"]
     threads: 4
@@ -157,3 +161,30 @@ rule r02_hrdem:
 rule r02_hrdem_all:
     input:
         _expand_outputs(plib["r02"]["ofp"])
+
+
+# r03_tohr -----------------------------
+d = dict(name="03_tohr")
+d["rule_name"] = "r03_tohr"
+d["od"] = str(OUT_DIR / "03_tohr" / "{hazard_type}" / "{protection}" / "{return_period}" / "{tileID}")
+d["ofp"] = str(Path(d["od"]) / "r03_tohr.vrt")
+plib["r03"] = d.copy()
+del d
+
+
+rule r03_tohr:
+    input:
+        r02_hrdem_fp = plib["r02"]["ofp"]
+    params:
+        rule_name=plib["r03"]["rule_name"],
+        cache_dir=_rule_cache_dir(plib["r03"]),
+        tile_index_chunk=lambda wildcards: _row_from_wildcards(wildcards).to_dict(),
+        DEBUG=DEBUG,
+        window_method='hard',
+    output:
+        r03_tohr_fp = plib["r03"]["ofp"]
+
+    log:
+        str(Path(plib["r03"]["od"]) / "snake.log")
+    script:
+        f"scripts/_{plib['r03']['name']}.py"
