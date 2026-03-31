@@ -1,9 +1,0 @@
-# Snakemake workflow configuration
-
-fathom_tiles_dir: "_inputs/300x300_2tile/00_tiles"  # Root directory holding the low-resolution Fathom tile folders.
-fathom_index_dir: "_inputs/300x300_2tile/00_tile_index"  # Directory holding the scenario GeoPackage tile indexes.
-out_dir: "workflow_outdir"  # Workflow output root for all rule products, logs, and caches.
-
-debug: false  # When true, apply tile_cnt after filtering for smaller scenario proof runs.
-tile_cnt: None  # Per-scenario tile limit used only when debug=true; None keeps all matching tiles.
-model_version: "ResUNet_16x_DEM"  # FloodSR model version used by the r03_tohr rule.

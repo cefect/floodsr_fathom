@@ -1,5 +1,7 @@
 # FloodSR for fathom global flood
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 Turn coarse global Fathom flood rasters into higher-resolution terrain-informed products with a reproducible Snakemake workflow.
 
 See the user documentation at [docs/user/USE.md](/workspace/docs/user/USE.md).
@@ -19,8 +21,20 @@ cd floodsr_fathom
 ```
 - setup environment: option 1: devcontainer (recommended), option 2: run with docker; option 3: local conda environment. see below. 
 - fetch AWS tiles into a nice directory (see `fathom_aws_fetch`), set this in `smk/config.yaml` as `fathom_tiles_dir`. note: the current local Fathom source tree does not include `PLUVIAL-UNDEFENDED`
-- create tile index into a nice directory (see `fathom_aws_fetch`), set this in `smk/config.yaml` as `fathom_index_dir`
+- create tile index into a nice directory (see `fathom_aws_fetch`)
+- create the `smk/config.yaml` file (see template below) and set
 
+### `smk/config.yaml` template
+create a file called `smk/config.yaml` with the following content, and customize the paths and parameters as needed for your setup. This file is used by the Snakemake workflow to locate inputs, set output directories, and configure debug options.
+```yaml
+fathom_tiles_dir: "_inputs/300x300_2tile/00_tiles"  # Root directory holding the low-resolution Fathom tile folders.
+fathom_index_dir: "_inputs/300x300_2tile/00_tile_index"  # Directory holding the scenario GeoPackage tile indexes.
+out_dir: "workflow_outdir"  # Workflow output root for all rule products, logs, and caches.
+
+debug: false  # When true, apply tile_cnt after filtering for smaller scenario proof runs.
+tile_cnt: None  # Per-scenario tile limit used only when debug=true; None keeps all matching tiles.
+model_version: "ResUNet_16x_DEM"  # FloodSR model version used by the r03_tohr rule.
+```
 
 ## setup environment
 
