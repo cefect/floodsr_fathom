@@ -10,7 +10,7 @@ from rasterio.windows import Window
 from tqdm import tqdm
 
 import smk.scripts.assertions as assertions
-from smk.scripts.coms import get_logger, resolve_cache_dir
+from smk.scripts.coms import get_logger, resolve_cache_dir, resolve_logging_level
 
 
 def main_01_prep(
@@ -101,22 +101,27 @@ def main_01_prep(
 
 
 if __name__ == "__main__":
-    if "snakemake" in globals():
-        # Initialize the rule logger and execute the rule entrypoint once.
-        rule_name = snakemake.params.rule_name
-        logger = get_logger(snakemake.log[0], level=logging.INFO, logger_name=rule_name, add_stream_handler=True)
-        try:
-            main_01_prep(
-                tile_fp=snakemake.input.tile_fp,
-                r01_prep_fp=snakemake.output.r01_prep_fp,
-                cache_dir=snakemake.params.cache_dir,
-                min_depth=snakemake.params.min_depth,
-                manual_window_size=snakemake.params.manual_window_size,
-                show_progress=snakemake.params.show_progress,
-                logger=logger,
-            )
-        except Exception as e:
-            # Attach rule context at the boundary, then log and re-raise once.
-            e.add_note(f"{rule_name} failed for input:\n    {snakemake.input.tile_fp}")
-            logger.exception(f"{rule_name} failed")
-            raise
+
+    # Initialize the rule logger and execute the rule entrypoint once.
+    rule_name = snakemake.params.rule_name
+    logger = get_logger(
+        snakemake.log[0],
+        level=resolve_logging_level(snakemake.params.logging_level, snakemake.params.DEBUG),
+        logger_name=rule_name,
+        add_stream_handler=True,
+    )
+    try:
+        main_01_prep(
+            tile_fp=snakemake.input.tile_fp,
+            r01_prep_fp=snakemake.output.r01_prep_fp,
+            cache_dir=snakemake.params.cache_dir,
+            min_depth=snakemake.params.min_depth,
+            manual_window_size=snakemake.params.manual_window_size,
+            show_progress=snakemake.params.show_progress,
+            logger=logger,
+        )
+    except Exception as e:
+        # Attach rule context at the boundary, then log and re-raise once.
+        e.add_note(f"{rule_name} failed for input:\n    {snakemake.input.tile_fp}")
+        logger.exception(f"{rule_name} failed")
+        raise

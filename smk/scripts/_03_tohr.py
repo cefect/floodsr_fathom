@@ -8,7 +8,7 @@ from floodsr.tohr import tohr
 from parameters import min_depth as MIN_DEPTH
 
 import smk.scripts.assertions as assertions
-from smk.scripts.coms import get_logger, resolve_cache_dir
+from smk.scripts.coms import get_logger, resolve_cache_dir, resolve_logging_level
 
 
 def main_03_tohr(
@@ -72,7 +72,12 @@ def main_03_tohr(
 
 if __name__ == "__main__":
     rule_name = snakemake.params.rule_name
-    logger = get_logger(snakemake.log[0], level=logging.INFO, logger_name=rule_name, add_stream_handler=True)
+    logger = get_logger(
+        snakemake.log[0],
+        level=resolve_logging_level(snakemake.params.logging_level, snakemake.params.DEBUG),
+        logger_name=rule_name,
+        add_stream_handler=True,
+    )
     try:
         main_03_tohr(
             r01_prep_fp=snakemake.input.r01_prep_fp,

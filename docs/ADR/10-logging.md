@@ -22,6 +22,14 @@ Each Snakemake rule script `__main__` entrypoint should initialize one file-back
 - one stable `logger_name` that identifies the rule/run
 - one explicit stream level for interactive visibility when a stream handler is enabled
 - prefer passing the rule identity explicitly from the Snakefile, for example `params.rule_name`, instead of hard-coding the rule name repeatedly inside the script
+- own the runtime stream-log level selection inside the `if __name__ == "__main__"` block
+
+Stream-level policy:
+- once a rule is in production, the default stream level should be `logging.WARNING`
+- if `params.DEBUG` is true and `params.logging_level` is `None`, the stream level should be `logging.DEBUG`
+- if `params.DEBUG` is false and `params.logging_level` is `None`, the stream level should be `logging.WARNING`
+- if `params.logging_level` is provided, it supersedes the debug-derived default
+- this selection logic should live in one shared helper in `smk/scripts/coms.py`
 
 The logger created at the entrypoint is the logging authority for that rule run:
 - pass it into the stage `main_*` function

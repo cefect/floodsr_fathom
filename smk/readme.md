@@ -16,7 +16,7 @@ export SNAKEMAKE_PROFILE=smk/profiles
 snakemake --force workflow_outdir/01_prep/FLUVIAL/UNDEFENDED/1in1000/n51w115/r01_prep.tif
 
 # all filtered prep invocations
-snakemake --forceall r01_prep_all
+snakemake -n r01_prep_all
 
 
 

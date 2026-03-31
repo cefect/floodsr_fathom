@@ -107,6 +107,7 @@ rule r01_prep:
         cache_dir=_rule_cache_dir(plib["r01"]),
         tile_index_chunk=lambda wildcards: _row_from_wildcards(wildcards).to_dict(),
         DEBUG=DEBUG,
+        logging_level=None,
         min_depth=float(config.get("min_depth", MIN_DEPTH)),
         manual_window_size=None,
         show_progress=False,
@@ -142,6 +143,7 @@ rule r02_hrdem:
         cache_dir=_rule_cache_dir(plib["r02"]),
         tile_index_chunk=lambda wildcards: _row_from_wildcards(wildcards).to_dict(),
         DEBUG=DEBUG,
+        logging_level=None,
         use_cache=True,
         force_tiling=True, # for vrt
         show_progress=False,
@@ -181,6 +183,7 @@ rule r03_tohr:
         cache_dir=_rule_cache_dir(plib["r03"]),
         tile_index_chunk=lambda wildcards: _row_from_wildcards(wildcards).to_dict(),
         DEBUG=DEBUG,
+        logging_level=None,
         model_version=str(config.get("model_version", "ResUNet_16x_DEM")),
         max_depth=10,
         min_depth_threshold=float(config.get("min_depth", MIN_DEPTH)),

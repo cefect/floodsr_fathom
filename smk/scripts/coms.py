@@ -76,6 +76,22 @@ def get_logger(log_file, level=logging.WARNING, logger_name="snake", add_stream_
     return logger
 
 
+def resolve_logging_level(logging_level=None, debug=False):
+    """Return one stream logging level from an explicit override or the debug flag."""
+    if logging_level is None:
+        return logging.DEBUG if bool(debug) else logging.WARNING
+    if isinstance(logging_level, int):
+        return logging_level
+    if isinstance(logging_level, str):
+        level_name = logging_level.strip().upper()
+        if not level_name:
+            return logging.DEBUG if bool(debug) else logging.WARNING
+        resolved_level = getattr(logging, level_name, None)
+        assert isinstance(resolved_level, int), f"unsupported logging level: {logging_level}"
+        return resolved_level
+    raise TypeError(f"unsupported logging_level type: {type(logging_level)!r}")
+
+
 def resolve_cache_dir(cache_dir, rule_name):
     """Return one cache directory path for a rule, with a system-temp fallback."""
     cache_dir = Path(cache_dir) if cache_dir is not None else Path(tempfile.gettempdir()) / "floodsr" / ".cache" / rule_name
