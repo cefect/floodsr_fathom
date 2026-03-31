@@ -3,6 +3,7 @@
 
 Workflow-specific ADRs for the Snakemake pipelines live under:
 - `docs/ADR/smk/`
+- cache-directory policy is defined in [ADR 11](/workspace/docs/ADR/11-caching.md)
 
 
 ## general
@@ -17,7 +18,7 @@ Workflow-specific ADRs for the Snakemake pipelines live under:
 
 ## cache and tmp
 - use python for retriving the platform agnostic tempdir
-- default cache location should be `{out_dir}'/.cache/{ruleName}` where out_dir comes from config and ruleName is the name of the rule (or `00_load_index` for the case of the preabmel load_index f unction)
+- resolve workflow and rule cache directories in the Snakefile following [ADR 11](/workspace/docs/ADR/11-caching.md)
 
 ## rules
 - use the folowing rule types

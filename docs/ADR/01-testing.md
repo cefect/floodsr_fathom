@@ -1,6 +1,8 @@
 # ADR: Tests
 
 no CI/CD
+
+Cache isolation for pytest and Snakemake proof tests is defined in [ADR 11](/workspace/docs/ADR/11-caching.md).
  
 # test categories
 Lets divide/mark tests into the following:
@@ -24,6 +26,7 @@ Contract:
 - copy fresh upstream rule outputs from the main `out_dir` into that temp tree before each proof run (except for the first rule proof, which can pull directly from the main `out_dir` since it is the first stage)
 - do not chain outputs from one proof test into the next; each rule proof should stage its own upstream inputs from the canonical workflow outputs
 - use `--allowed-rules` so the proof stays scoped to the intended rule
+- pass pytest temp cache directories into cache-aware workflow code so test caching stays isolated from developer and project caches
  
  
 

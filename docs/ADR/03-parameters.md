@@ -6,6 +6,8 @@ Use three distinct configuration layers:
 - `smk/profiles/**` define execution-engine behavior only, such as scheduler/executor choice, cores, retries, global resources, latency knobs, and submission policy
 - `conf.py` defines project-level configuration such as scenario dimensions, but not scientific defaults or environment-specific bindings
 
+Cache-directory ownership and runtime cache resolution are defined in [ADR 11](/workspace/docs/ADR/11-caching.md).
+
  
 
 ## `smk/config.yaml`
@@ -17,6 +19,8 @@ It should hold:
 - checkpoint path bindings referenced indirectly through keys such as `weights_config_key`
 - user selection filters such as `state_ids`, `sensor_ids`, `item_ids`, and similar workflow selectors
 - temporary/operator-facing overrides passed through Snakemake config when explicitly desired for a run
+
+Snakefile-side resolution of project and rule cache directories should follow [ADR 11](/workspace/docs/ADR/11-caching.md).
 
 It should not be treated as the canonical home for scientific defaults that belong in `parameters.py` or stage-boundary schema that belongs in contracts.
 

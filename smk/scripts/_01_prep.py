@@ -1,6 +1,6 @@
 """Preprocess one Fathom low-resolution tile for downstream HRDEM fetch."""
 
-import logging
+import logging, tempfile
 from pathlib import Path
 
 import numpy as np
@@ -13,9 +13,17 @@ import smk.scripts.assertions as assertions
 from smk.scripts.coms import get_logger
 
 
+def _resolve_cache_dir(cache_dir):
+    """Return one cache directory path, falling back to a system temp cache root."""
+    cache_dir = Path(cache_dir) if cache_dir is not None else Path(tempfile.gettempdir()) / "floodsr" / ".cache" / "r01_prep"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir.resolve()
+
+
 def main_01_prep(
     tile_fp,
     r01_prep_fp,
+    cache_dir=None,
     min_depth=MIN_DEPTH,
     manual_window_size=None,
     show_progress=False,
@@ -26,6 +34,7 @@ def main_01_prep(
     log = logger or logging.getLogger(__name__)
     tile_fp = Path(tile_fp)
     r01_prep_fp = Path(r01_prep_fp)
+    cache_dir = _resolve_cache_dir(cache_dir)
     min_depth = float(min_depth)
     manual_window_size = None if manual_window_size is None else int(manual_window_size)
 
@@ -39,7 +48,7 @@ def main_01_prep(
     r01_prep_fp.parent.mkdir(parents=True, exist_ok=True)
     log.info(f"starting 01_prep with input=\n    {tile_fp}")
     log.debug(
-        f"01_prep parameters: r01_prep_fp={r01_prep_fp}, min_depth={min_depth}, manual_window_size={manual_window_size}"
+        f"01_prep parameters: r01_prep_fp={r01_prep_fp}, cache_dir={cache_dir}, min_depth={min_depth}, manual_window_size={manual_window_size}"
     )
 
     # Read the source raster and choose either native blocks or manual windows.
@@ -111,6 +120,7 @@ if __name__ == "__main__":
             main_01_prep(
                 tile_fp=snakemake.input.tile_fp,
                 r01_prep_fp=snakemake.output.r01_prep_fp,
+                cache_dir=snakemake.params.cache_dir,
                 min_depth=snakemake.params.min_depth,
                 manual_window_size=snakemake.params.manual_window_size,
                 show_progress=snakemake.params.show_progress,
