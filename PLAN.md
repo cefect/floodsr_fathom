@@ -10,7 +10,7 @@ want to build a test data set that mirrors the structure, but has a much smaller
 run to prove (conda -n deploy). 
 summarize resulting file size
 
-## implement smk workflow (on `workflow_outdir_test`)
+## implement smk workflow (on `workflow_outdir_test`) r01_prep + r02_hrdem
 - follow the poc from `dev/proof_of_concept/fathom_tohr.ipynb`
 - match where possible and replace with a fresh minimal local Snakefile using current ADRs,
     - clean out EP/resources, COMMON_INPUTS, etc
@@ -71,3 +71,15 @@ smk/readme.md
 no fallbacks. hard errors. 
 be critical of existing code.. it is a mix of copy/paste and partial migration from another project (ADRs are fully migrated though and should be trusted). 
 smk/config.yaml as the only place for out_dir, fathom_index_dir, fathom_tiles_dir, and scenario selectors. Keep the profile strictly for executor/cores/resources.
+
+
+## implement tohr
+- roughly following the poc from `dev/proof_of_concept/fathom_tohr.ipynb`, extend the workflow to implement the `tohr` function. 
+
+r03_tohr
+- start with skeleton rule I put in the snakefile. 
+- add a new assertion to prove the output contract (use existing assertion to prove input)
+- see notebook for contract and patterns
+
+tests
+- add a test for the new rule in `tests/test_smk.py` and `tests/test_workflow.py` (pointing to a single tile).
