@@ -6,3 +6,4 @@ out_dir: "workflow_outdir"  # Workflow output root for all rule products, logs, 
 
 debug: false  # When true, apply tile_cnt after filtering for smaller scenario proof runs.
 tile_cnt: None  # Per-scenario tile limit used only when debug=true; None keeps all matching tiles.
+model_version: "ResUNet_16x_DEM"  # FloodSR model version used by the r03_tohr rule.

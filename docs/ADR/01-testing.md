@@ -13,6 +13,11 @@ Tests should mirror the script __main__ entrypoints.
 Inputs should be built with `fixtures` to mirror the rule filepath logic. i.e., these **pull directly** from the `workflow_outdir` structure, and therefore **CAN NOT** run without at least the preceeding rule being complete. 
 Should be a 1:1 relation between tests and the `main` functions in the rule scripts.
 
+Contract:
+- when a workflow test depends on a canonical upstream workflow asset from `workflow_outdir`, the fixture should assert that asset exists and fail fast if it is missing
+- do not generate missing canonical prerequisite assets inside downstream workflow tests; upstream products should either already exist or be created only by the test for the rule currently under test
+- output paths for the rule currently under test should be created inside the test function with `tmp_path` rather than dedicated fixtures, since these tests care about the produced object contract more than a canonical filename
+
 These are organized into test scirpts per workflow.
 
 ### CLI proof extension
@@ -27,6 +32,7 @@ Contract:
 - do not chain outputs from one proof test into the next; each rule proof should stage its own upstream inputs from the canonical workflow outputs
 - use `--allowed-rules` so the proof stays scoped to the intended rule
 - pass pytest temp cache directories into cache-aware workflow code so test caching stays isolated from developer and project caches
+- do not invoke workflow code inside CLI-proof fixtures to generate missing prerequisite assets; these fixtures should fail fast with a clear missing-asset assertion so proof tests only stage already-existing canonical outputs
  
  
 

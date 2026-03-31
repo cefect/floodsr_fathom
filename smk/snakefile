@@ -174,17 +174,30 @@ del d
 
 rule r03_tohr:
     input:
+        r01_prep_fp = plib["r01"]["ofp"],
         r02_hrdem_fp = plib["r02"]["ofp"]
     params:
         rule_name=plib["r03"]["rule_name"],
         cache_dir=_rule_cache_dir(plib["r03"]),
         tile_index_chunk=lambda wildcards: _row_from_wildcards(wildcards).to_dict(),
         DEBUG=DEBUG,
-        window_method='hard',
+        model_version=str(config.get("model_version", "ResUNet_16x_DEM")),
+        max_depth=10,
+        min_depth_threshold=float(config.get("min_depth", MIN_DEPTH)),
+        crs_policy="use-dem",
+        window_method="hard",
+        show_progress=False,
     output:
         r03_tohr_fp = plib["r03"]["ofp"]
-
+    threads: 4
+    resources:
+        api_calls=1
     log:
         str(Path(plib["r03"]["od"]) / "snake.log")
     script:
         f"scripts/_{plib['r03']['name']}.py"
+
+
+rule r03_tohr_all:
+    input:
+        _expand_outputs(plib["r03"]["ofp"])

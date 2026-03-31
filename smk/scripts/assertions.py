@@ -128,6 +128,25 @@ def assert_02_hrdem_output_raster(dem_hr_fp):
     assert sample_ar.count() > 0, "HRDEM output sample is fully masked"
 
 
+def assert_03_tohr_output_raster(r03_tohr_fp):
+    """Validate one ToHR output raster or VRT."""
+    if not __debug__:
+        return
+
+    r03_tohr_fp = Path(r03_tohr_fp)
+    assert r03_tohr_fp.exists(), f"missing ToHR output raster:\n    {r03_tohr_fp}"
+    assert r03_tohr_fp.suffix.lower() in {".tif", ".vrt"}, f"unexpected ToHR suffix:\n    {r03_tohr_fp}"
+
+    with rasterio.open(r03_tohr_fp) as ds:
+        assert ds.count == 1, f"expected one band, got {ds.count}"
+        assert ds.width > 0 and ds.height > 0, f"unexpected raster shape: {(ds.height, ds.width)}"
+        assert ds.crs is not None, "expected ToHR CRS to be present"
+        sample_ar = ds.read(1, out_shape=(min(ds.height, 64), min(ds.width, 64)), masked=True)
+
+    assert sample_ar.count() > 0, "ToHR output sample is fully masked"
+    assert np.isfinite(sample_ar.compressed()).all(), "ToHR output sample contains non-finite values"
+
+
 def assert_02_hrdem_inputs(r01_prep_fp, r02_hrdem_fp):
     """Validate the main_02_hrdem runtime inputs before fetch."""
     if not __debug__:
