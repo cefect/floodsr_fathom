@@ -1,224 +1,159 @@
-
-#print('start snakefile')
-
-#===============================================================================
-# IMPORTS
-#===============================================================================
-import glob, datetime, pprint, sys, os, csv, time, json, builtins, tempfile, warnings
-
-start_time = time.time()
-
-import pandas as pd
-import geopandas as gpd
+import datetime, tempfile
 from pathlib import Path
 
-import snakemake
-from snakemake.utils import validate 
-from snakemake import resources
-from snakemake.io import ancient
+from parameters import min_depth as MIN_DEPTH
 from snakemake.logging import logger
 
+from smk.snakefile_coms import _coerce_bool, load_index, parse_config_list
 
-# Redirect print to stderr for snakemake+htcondor logging
-# requries 'stream_output = True' in the submit file to see output in real-time
-_builtin_print = builtins.print
-def print(*args, **kwargs):
-    _builtin_print(*args, file=sys.stderr, flush=True, **kwargs)
+start_time = datetime.datetime.now()
 
-
-# -----------------------
-# ----- ENVIRONMNET -----
-# -----------------------
-#ensure the repo root is at the front of sys.path
-REPO_ROOT = Path(os.getcwd())
-sys.path.insert(0, str(REPO_ROOT))
-#print(f'Added to sys.path: {REPO_ROOT}')
-
-
-# HTC executor setup ------------------
-
-import parameters
-
-# from smk.snakefile_coms import (
-#     collect_common_inputs,
-#     parse_config_list,
-#     dir_from_config,
-#     load_or_build_tile_index,
-#     load_idf_series,
-# )
-
- 
-
-# #enviroment inspection===========
-print(f'snakemake.__version__: {snakemake.__version__}')
-
-
-#===============================================================================
-# SNAKE CONFIG-----------------
-#===============================================================================
-# Load config file
 configfile: "smk/config.yaml"
 
-
-
-
-
-#===============================================================================
-# HOOKS
-#===============================================================================
-
-onstart:
-    # runs after Snakemake has parsed the workflow and constructed the DAG, right before execution begins.
-    # nothing here that assists in rule driving
-    print(f"[snakefile.onstart] {datetime.datetime.now()}")
-    print(f"[snakefile.onstart] {Path(__file__).name}")
-    #import scripts.search_path_config #update search paths (needs to happen before imports)
-
-    #print(f"[snakefile] COMMON_INPUTS:\n    {pprint.pformat(COMMON_INPUTS)}")
-
-    if DEBUG:
-        print("\033[95mDEBUG mode is ON\033[0m")
-
-    if not SNAKEMAKE_EP:
-        print(f"OUT_DIR: {OUT_DIR}")
-        print(f"TEMP_DIR: {TEMP_DIR}")
-
-onsuccess:
-    # report total wall-clock runtime for the workflow
-    runtime_sec = time.time() - start_time
-    print(f"[snakefile.onsuccess] wall clock runtime: {runtime_sec:.1f} sec")
-
- 
-#===============================================================================
-# parameters
-#===============================================================================
-
-
-# Helper to normalize directory config entries to Path or None
-
-
-# Parse CLI input from config
 OUT_DIR = Path(config.get("out_dir"))
- 
-
-#temp dir. using python backend, which pulls from system ENV (TMPDIR , TEMP, TMP)
-# matches snakemake behavior
-# for usage in rules, use snakemake.resources.tmpdir (handles parallel runs better)
-#TEMP_DIR = _dir_from_config(config.get("temp_dir"))
-TEMP_DIR = Path(tempfile.gettempdir())
-
-DEBUG = config.get("debug", False)
-
-
-TILE_CNT = config.get("tile_cnt", 2)
-if isinstance(TILE_CNT, str) and TILE_CNT.strip().lower() in {"none", "null", "", 'None'}:
-    TILE_CNT = None
-HRDEM_ASSET = config.get("hrdem_asset", "dtm")
-
- 
-#Directories===============================
-
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+PROJECT_CACHE_DIR = Path(config.get("cache_dir", OUT_DIR / ".cache")).resolve()
+PROJECT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+TEMP_DIR = Path(tempfile.gettempdir())
+DEBUG = bool(_coerce_bool(config.get("debug")) or False)
+TILE_CNT = config.get("tile_cnt")
+TILE_CNT = None if TILE_CNT in {None, "", "none", "None", "null"} else int(TILE_CNT)
 
-# fathom scenario dimensions
-
-
- 
-
-# Primary Indexers/Wildcards======================
-# collect from CLI
-IDS = {
-    'return_period': parse_config_list(config.get("return_period")),
-    'protection': parse_config_list(config.get("protection")),
-    'hazard_type': parse_config_list(config.get("hazard_type")),
- 
+FILTERS_D = {
+    "return_period": parse_config_list(config.get("return_period")),
+    "protection": parse_config_list(config.get("protection")),
+    "hazard_type": parse_config_list(config.get("hazard_type")),
 }
 
-for key, value in IDS.items():
-    logger.info(f"    Using {key}: {value if value is not None else 'ALL'}")
+index_df = load_index(
+    config.get("fathom_index_dir"),
+    fathom_tiles_dir=config.get("fathom_tiles_dir"),
+    tile_cnt=TILE_CNT,
+    filters_d=FILTERS_D,
+    cache_dir=PROJECT_CACHE_DIR / "00_load_index",
+    debug=DEBUG,
+    use_cache=True,
+    logger=logger,
+)
+
+RUN_COL_L = ["hazard_type", "protection", "return_period", "tileID"]
+RUN_RECORD_L = index_df.loc[:, RUN_COL_L].drop_duplicates().to_dict("records")
 
 
-index_dir = config['fathom_index_dir']
-try:
-    index_df, IDS, _, cache_hit = load_index(
-        index_dir,
-        IDS,
-        TEMP_DIR / "load_index",
-        tile_cnt=TILE_CNT,
-        debug=DEBUG, use_cache=True
-    )
-except Exception as e:
-    e.add_note(f"Failed to load filtered index  at {index_dir}")
-    raise
-
-logger.info(f"Filtered  index contains {len(index_df):,} rows\n   {index_df.nunique().to_dict()}")
-
- 
+onstart:
+    logger.info(f"snakefile start: {start_time.isoformat()}")
+    logger.info(f"workflow rows: {len(index_df):,}")
+    logger.info(f"out_dir: {OUT_DIR}")
 
 
-    
-
-#===============================================================================
-# HELPERS------
-#===============================================================================
+onsuccess:
+    runtime_s = (datetime.datetime.now() - start_time).total_seconds()
+    logger.info(f"snakefile success in {runtime_s:.1f}s")
 
 
+onerror:
+    runtime_s = (datetime.datetime.now() - start_time).total_seconds()
+    logger.error(f"snakefile failed after {runtime_s:.1f}s")
 
-print(f'spinup finished in {time.time()-start_time:.1f} sec. SNAKEMAKE_EP={SNAKEMAKE_EP}')
+
+def _row_from_wildcards(wildcards):
+    """Return one normalized load-index row for the current wildcard set."""
+    match_df = index_df.loc[
+        (index_df["hazard_type"] == wildcards.hazard_type)
+        & (index_df["protection"] == wildcards.protection)
+        & (index_df["return_period"] == wildcards.return_period)
+        & (index_df["tileID"] == wildcards.tileID)
+    ]
+    assert len(match_df) == 1, f"expected one row for {wildcards}, got {len(match_df)}"
+    return match_df.iloc[0]
+
+
+def _expand_outputs(pattern):
+    """Return one output list expanded over the filtered workflow rows."""
+    return [pattern.format(**record) for record in RUN_RECORD_L]
+
+
+def _rule_cache_dir(rule_name):
+    """Return one project-local cache directory for the current rule."""
+    return str((PROJECT_CACHE_DIR / rule_name).resolve())
+
+
+
+
 #===============================================================================
 # RULES------
 #===============================================================================
 
-# Initialize plib dictionary
 plib = {}
 
 
 
-# 01 TILE CHUNK--------------------
-# d = dict(name='01_chunk')
-# d['od'] = os.path.join(OUT_DIR, d['name'], '{tileID}')
-# d['ofp'] = os.path.join(d['od'], "01_index_chunk.pkl")  
-# plib['r01'] = d.copy()
-
-def get_tile_index_chunk(wildcards):
-    """Helper to get tile index chunk for current tileID"""
- 
-    return chunk
-
- 
- 
-# # 02 HRDEM FETCH --------------------        
-d = dict(name='02_hrdem')
-d['od'] = os.path.join(OUT_DIR, d['name'], '{hazard_type}', '{protection}', '{tileID}', '{return_period}')
-d['ofp'] = os.path.join(d['od'], "02_hrdem.tif")  
+# r01_prep -----------------------------
+d = dict(name="01_prep")
+d['od'] = str(OUT_DIR / "01_prep" / "{hazard_type}" / "{protection}" / "{return_period}" / "{tileID}")
+d['ofp'] = str(Path(d['od']) / "r01_prep.tif")
 plib['r01'] = d.copy()
+del d
 
- 
-rule r01_hrdem:
-    """fetch the HRDEM data for the tile"""
+
+
+
+rule r01_prep:
     input:
- 
+        tile_fp=lambda wildcards: _row_from_wildcards(wildcards)["tile_fp"]
     params:
-        tile_index_chunk = get_tile_index_chunk,
-        DEBUG = DEBUG,
-        TEMP_DIR = TEMP_DIR,
- 
+        rule_name="r01_prep",
+        cache_dir=_rule_cache_dir("r01_prep"),
+        tile_index_chunk=lambda wildcards: _row_from_wildcards(wildcards).to_dict(),
+        DEBUG=DEBUG,
+        min_depth=float(config.get("min_depth", MIN_DEPTH)),
+        manual_window_size=None,
+        show_progress=False,
     output:
-        plib['r01']['ofp']
-    threads: 4 #tune this
- 
-    resources:
-        api_calls=1, #global cap on api calls
- 
-    #retries: 0
+        r01_prep_fp = plib["r01"]["ofp"]
+    threads: 1
     log:
-        os.path.join(plib['r01']['od'], 'snake.log')
+        str(Path(plib["r01"]["od"]) / "snake.log")
     script:
-        f'scripts/_{plib['r01']['name']}.py'  
+        f"scripts/_{plib['r01']['name']}.py"
 
 
-
-
-rule r01_hrdem_all: 
+rule r01_prep_all:
     input:
-        # expand(plib['r01']['ofp'], ...)
+        _expand_outputs(plib["r01"]["ofp"])
+
+
+
+
+# r02_hrdem -----------------------------
+d = dict(name="02_hrdem")
+d["od"] = str(OUT_DIR / "02_hrdem" / "{hazard_type}" / "{protection}" / "{return_period}" / "{tileID}")
+d["ofp"] = str(Path(d["od"]) / "r02_hrdem.vrt")
+plib["r02"] = d.copy()
+del d
+
+rule r02_hrdem:
+    input:
+        r01_prep_fp = plib["r01"]["ofp"]
+    params:
+        rule_name="r02_hrdem",
+        cache_dir=_rule_cache_dir("r02_hrdem"),
+        tile_index_chunk=lambda wildcards: _row_from_wildcards(wildcards).to_dict(),
+        DEBUG=DEBUG,
+        use_cache=True,
+        force_tiling=True, # for vrt
+        show_progress=False,
+    output:
+        r02_hrdem_fp = plib["r02"]["ofp"]
+    threads: 4
+    resources:
+        api_calls=1
+    log:
+        str(Path(plib["r02"]["od"]) / "snake.log")
+    script:
+        f"scripts/_{plib['r02']['name']}.py"
+
+
+rule r02_hrdem_all:
+    input:
+        _expand_outputs(plib["r02"]["ofp"])

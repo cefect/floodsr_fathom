@@ -1,15 +1,47 @@
-"""CLI-backed Snakemake proof tests for workflow """
-
+"""CLI-backed Snakemake proof tests for the local Fathom workflow."""
 
 import os, shutil, subprocess, sys
 from pathlib import Path
 
+import pytest
 
 from conftest import config
+import smk.scripts._01_prep
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW_OUT_DIR = REPO_ROOT / config["out_dir"]
+PROFILE_DIR = (REPO_ROOT / "smk" / "profiles").resolve()
+CONFIG_FP = (REPO_ROOT / "smk" / "config.yaml").resolve()
+INDEX_DIR = (REPO_ROOT / config["fathom_index_dir"]).resolve()
+TILES_DIR = (REPO_ROOT / config["fathom_tiles_dir"]).resolve()
+WORKFLOW_OUT_DIR = (REPO_ROOT / config["out_dir"]).resolve()
 
+
+@pytest.fixture(scope="function")
+def wet_tile_fp():
+    """Return one wet low-resolution tile for CLI rule proofs."""
+    return (
+        TILES_DIR
+        / "FLOOD_MAP-1ARCSEC-NW_OFFSET-1in1000-PLUVIAL-DEFENDED-DEPTH-2020-PERCENTILE50-v3.1"
+        / "n49w124.tif"
+    )
+
+
+@pytest.fixture(scope="function")
+def canonical_prep_fp(wet_tile_fp, logger):
+    """Ensure the canonical prep output exists for the HRDEM CLI proof."""
+    prep_fp = WORKFLOW_OUT_DIR / "01_prep" / "PLUVIAL" / "DEFENDED" / "1in1000" / "n49w124" / "r01_prep.tif"
+    prep_fp.parent.mkdir(parents=True, exist_ok=True)
+    if not prep_fp.exists():
+        smk.scripts._01_prep.main_01_prep(
+            tile_fp=wet_tile_fp,
+            r01_prep_fp=prep_fp,
+            cache_dir=prep_fp.parent / ".cache",
+            min_depth=0.01,
+            manual_window_size=128,
+            show_progress=False,
+            logger=logger,
+        )
+    return prep_fp
 
 
 def _copy_path(src_path, dst_path):
@@ -18,7 +50,6 @@ def _copy_path(src_path, dst_path):
     dst_path = Path(dst_path)
     assert src_path.exists(), f"Missing prerequisite source:\n    {src_path}"
 
-    # Copy tree inputs exactly once per test run.
     if src_path.is_dir():
         shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
     else:
@@ -26,18 +57,14 @@ def _copy_path(src_path, dst_path):
         shutil.copy2(src_path, dst_path)
 
 
+def _run_rule_proof(tmp_path, run_d):
+    """Stage inputs and execute one isolated Snakemake CLI rule proof."""
+    temp_root = tmp_path / "smk"
+    target_path = temp_root / run_d["target"]
 
-def _1stage_run_inputs(temp_root, stage_l):
-    """Copy all prerequisite artifacts for one Snakemake proof run."""
- 
-    for stage_d in stage_l:
-        print(f"Staging input for Snakemake proof:\n    {stage_d['src']} -> {temp_root / stage_d['dst']}")
+    for stage_d in run_d.get("stage_l", []):
         _copy_path(stage_d["src"], temp_root / stage_d["dst"])
 
-
-def _2run_snakemake_cli(temp_root, run_d):
-    """Execute one isolated Snakemake CLI invocation in a temp workdir."""
-    target = str(run_d["target"])
     args = [
         sys.executable,
         "-m",
@@ -45,9 +72,9 @@ def _2run_snakemake_cli(temp_root, run_d):
         "--profile",
         "none",
         "--workflow-profile",
-        str(run_d["profile"]),
+        str(PROFILE_DIR),
         "--configfile",
-        str((REPO_ROOT / "smk" / "config.yaml").resolve()),
+        str(CONFIG_FP),
         "--directory",
         str(temp_root),
         "--cores",
@@ -55,68 +82,51 @@ def _2run_snakemake_cli(temp_root, run_d):
         "--allowed-rules",
         run_d["allowed_rule"],
         "--config",
-        *[f"{key}={value}" for key, value in run_d["config_d"].items()],
+        f"out_dir={config['out_dir']}",
+        f"cache_dir={temp_root / config['out_dir'] / '.cache'}",
+        f"fathom_tiles_dir={TILES_DIR}",
+        f"fathom_index_dir={INDEX_DIR}",
         "--",
-        target,
+        str(run_d["target"]),
     ]
-    env = os.environ.copy()
-    env["PYTHONUNBUFFERED"] = "1"
 
-    # Run the real CLI from the repo root so profile-relative paths resolve cleanly.
-    return subprocess.run(
+    result = subprocess.run(
         args,
         cwd=REPO_ROOT,
-        env=env,
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
         check=False,
     )
-
-
-def _run_rule_proof(tmp_path, run_d):
-    """Stage inputs, invoke Snakemake, and return the process plus target path."""
-    temp_root = tmp_path / "smk"
-    target_path = temp_root / run_d["target"]
-
-    # Stage fresh upstream artifacts from the main workflow outputs.
-    _1stage_run_inputs(temp_root, run_d.get("stage_l", []))
-    result = _2run_snakemake_cli(temp_root, run_d)
     return result, target_path
 
 
+@pytest.mark.smk
+def test_r01_prep_cli(tmp_path):
+    """Prove the real Snakemake CLI can run r01_prep for one wet tile."""
+    run_d = {
+        "allowed_rule": "r01_prep",
+        "target": Path(config["out_dir"]) / "01_prep" / "PLUVIAL" / "DEFENDED" / "1in1000" / "n49w124" / "r01_prep.tif",
+    }
+    result, target_path = _run_rule_proof(tmp_path, run_d)
 
-# @pytest.mark.parametrize("state_id", [pytest.param("50", id="state50")])
-# @pytest.mark.smk
-# def test_workflow_a_r00_event_prep(tmp_path, state_id):
-#     """Prove workflow-A `r00_event_prep` via the Snakemake CLI."""
-#     run_d = {
-#         "allowed_rule": "r00_event_prep",
-#         "config_d": WORKFLOW_A_COMMON_CONFIG_D | {"state_ids": state_id},
-#         "profile": WORKFLOW_A_PROFILE,
-#         "target": Path(f"workflow_outdir/00_event_prep/{state_id}/event_huc_bbox.pkl"),
-#     }
-#     result, target_path = _run_rule_proof(tmp_path, run_d)
-
-#     assert result.returncode == 0
-#     assert target_path.exists()
-#     assert (target_path.parent / "metadata.json").exists()
+    assert result.returncode == 0
+    assert target_path.exists()
 
 
-# @pytest.mark.parametrize("state_id", [pytest.param("50", id="state50")])
-# @pytest.mark.smk
-# def test_workflow_a_r00b_event_huc_index(tmp_path, state_id):
-#     """Prove workflow-A `r00B_event_huc_index` via the Snakemake CLI."""
-#     run_d = {
-#         "allowed_rule": "r00B_event_huc_index",
-#         "config_d": WORKFLOW_A_COMMON_CONFIG_D | {"state_ids": state_id},
-#         "profile": WORKFLOW_A_PROFILE,
-#         "stage_l": [
-#             {
-#                 "dst": Path(f"workflow_outdir/00_event_prep/{state_id}/event_huc_index.parquet"),
-#                 "src": WORKFLOW_OUT_DIR / "00_event_prep" / state_id / "event_huc_index.parquet",
-#             }
-#         ],
-#         "target": Path("workflow_outdir/00B_event_huc_index/00B_event_huc_index.parquet"),
-#     }
-#     result, target_path = _run_rule_proof(tmp_path, run_d)
+@pytest.mark.smk
+@pytest.mark.network
+def test_r02_hrdem_cli(tmp_path, canonical_prep_fp):
+    """Prove the real Snakemake CLI can run r02_hrdem from staged prep output."""
+    run_d = {
+        "allowed_rule": "r02_hrdem",
+        "stage_l": [
+            {
+                "dst": Path(config["out_dir"]) / "01_prep" / "PLUVIAL" / "DEFENDED" / "1in1000" / "n49w124" / "r01_prep.tif",
+                "src": canonical_prep_fp,
+            }
+        ],
+        "target": Path(config["out_dir"]) / "02_hrdem" / "PLUVIAL" / "DEFENDED" / "1in1000" / "n49w124" / "r02_hrdem.vrt",
+    }
+    result, target_path = _run_rule_proof(tmp_path, run_d)
 
-#     assert result.returncode == 0
-#     assert target_path.exists()
+    assert result.returncode == 0
+    assert target_path.exists()

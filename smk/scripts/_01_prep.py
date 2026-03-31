@@ -1,6 +1,6 @@
 """Preprocess one Fathom low-resolution tile for downstream HRDEM fetch."""
 
-import logging, tempfile
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -10,14 +10,7 @@ from rasterio.windows import Window
 from tqdm import tqdm
 
 import smk.scripts.assertions as assertions
-from smk.scripts.coms import get_logger
-
-
-def _resolve_cache_dir(cache_dir):
-    """Return one cache directory path, falling back to a system temp cache root."""
-    cache_dir = Path(cache_dir) if cache_dir is not None else Path(tempfile.gettempdir()) / "floodsr" / ".cache" / "r01_prep"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir.resolve()
+from smk.scripts.coms import get_logger, resolve_cache_dir
 
 
 def main_01_prep(
@@ -34,7 +27,7 @@ def main_01_prep(
     log = logger or logging.getLogger(__name__)
     tile_fp = Path(tile_fp)
     r01_prep_fp = Path(r01_prep_fp)
-    cache_dir = _resolve_cache_dir(cache_dir)
+    cache_dir = resolve_cache_dir(cache_dir, rule_name="r01_prep")
     min_depth = float(min_depth)
     manual_window_size = None if manual_window_size is None else int(manual_window_size)
 

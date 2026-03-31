@@ -1,5 +1,5 @@
 """helper functions for snakemake scripts"""
-import json, logging, os
+import json, logging, os, tempfile
 
 
 
@@ -74,6 +74,13 @@ def get_logger(log_file, level=logging.WARNING, logger_name="snake", add_stream_
 
 
     return logger
+
+
+def resolve_cache_dir(cache_dir, rule_name):
+    """Return one cache directory path for a rule, with a system-temp fallback."""
+    cache_dir = Path(cache_dir) if cache_dir is not None else Path(tempfile.gettempdir()) / "floodsr" / ".cache" / rule_name
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir.resolve()
 
  
  

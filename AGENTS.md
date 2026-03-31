@@ -1,3 +1,8 @@
+# gen
+- when proving/running tests, use a timeout of 30 secs
+- for tests that dont complete, include a single bash command to run those
+
+
 ## snakemake (smk)
 - prove/develop on a single tile tiny tile
 - full run is only proven on two full tiles (for each dimension)

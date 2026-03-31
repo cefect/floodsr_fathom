@@ -40,7 +40,7 @@ Workflow-specific ADRs for the Snakemake pipelines live under:
 - omit generic direction words such as `input` and `output` from the object variable name. prefer names such as `r01_prep_fp` and `r02_hrdem_fp`.
 - keep the object name stable end-to-end: Snakefile `input` and `output` keys, `snakemake.input.<name>` and `snakemake.output.<name>` access, script function parameter names, local variable names, assertions, and emitted filenames should all use the same contract name.
 - each distinct workflow object should have one canonical name across the project. the same raster, table, or tile index should not be renamed just because it appears in a downstream rule.
-- output filenames should follow the same contract name where practical. for example, the file produced by `r01_prep` should be named `01_prep.tif` and carried as `r01_prep_fp` in downstream rules and scripts.
+- output filenames should follow the same contract name as the canonical variable where practical. for example, the file produced by `r01_prep` should be named `r01_prep.tif` and carried as `r01_prep_fp` in downstream rules and scripts.
 - rule definitions should still declare every `input:` and `output:` with explicit named variables rather than positional entries.
 
 #### Workflow Naming
