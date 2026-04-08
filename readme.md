@@ -1,31 +1,31 @@
-# FloodSR for fathom global flood
+# FloodSR for Fathom global flood
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 Turn coarse global Fathom flood rasters into higher-resolution terrain-informed products with a reproducible Snakemake workflow.
 
-See the user documentation at [docs/user/USE.md](/workspace/docs/user/USE.md).
+See the user documentation at [docs/user/USE.md](docs/user/USE.md).
 
 
 
 
 
 ## setup
-this project is distributed as a Git repository because the workflow, tests, configuration, and container/environment definitions all live together and need to stay versioned in sync.
+This project is distributed as a Git repository because the workflow, tests, configuration, and container/environment definitions all live together and need to stay versioned in sync.
 
-to get started, you will need to:
+To get started, you will need to:
 - clone the repo first for any setup option:
 ```bash
 git clone git@github.com:cefect/floodsr_fathom.git floodsr_fathom
 cd floodsr_fathom
 ```
-- setup environment: option 1: devcontainer (recommended), option 2: run with docker; option 3: local conda environment. see below. 
-- fetch AWS tiles into a nice directory (see `fathom_aws_fetch`), set this in `smk/config.yaml` as `fathom_tiles_dir`. note: the current local Fathom source tree does not include `PLUVIAL-UNDEFENDED`
-- create tile index into a nice directory (see `fathom_aws_fetch`)
-- create the `smk/config.yaml` file (see template below) and set
+- set up the environment: option 1: devcontainer (recommended), option 2: run with Docker, option 3: local conda environment. See below.
+- fetch AWS tiles into a local directory using [`fathom_aws_fetch`](https://github.com/cefect/fathom_aws_fetch), then set that path in `smk/config.yaml` as `fathom_tiles_dir`. Note: the current local Fathom source tree does not include `PLUVIAL-UNDEFENDED`.
+- create the tile index in a local directory using [`fathom_aws_fetch`](https://github.com/cefect/fathom_aws_fetch), then set that path in `smk/config.yaml` as `fathom_index_dir`.
+- create the `smk/config.yaml` file from the template below and set the required paths and parameters.
 
 ### `smk/config.yaml` template
-create a file called `smk/config.yaml` with the following content, and customize the paths and parameters as needed for your setup. This file is used by the Snakemake workflow to locate inputs, set output directories, and configure debug options.
+Create a file called `smk/config.yaml` with the following content, and customize the paths and parameters as needed for your setup. This file is used by the Snakemake workflow to locate inputs, set output directories, and configure debug options.
 ```yaml
 fathom_tiles_dir: "_inputs/300x300_2tile/00_tiles"  # Root directory holding the low-resolution Fathom tile folders.
 fathom_index_dir: "_inputs/300x300_2tile/00_tile_index"  # Directory holding the scenario GeoPackage tile indexes.
@@ -48,7 +48,7 @@ Requirements:
 - [Docker Engine or Docker Desktop](https://docs.docker.com/get-docker/)
 - local access to the project repo and any host data directories you want to mount into the container
 
-To setup, create the following files (see below for content) and customize as needed, then rebuild and enter the container with [VS Code](https://code.visualstudio.com/docs/devcontainers/containers):
+To set up, create the following files (see below for content) and customize as needed, then rebuild and enter the container with [VS Code](https://code.visualstudio.com/docs/devcontainers/containers):
 
 `.devcontainer/devcontainer.json`:
 ```json
